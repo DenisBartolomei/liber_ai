@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply font-body text-burgundy-900 bg-cream-50 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-cream-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-burgundy-300 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-burgundy-500;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-burgundy-900 text-cream-50 font-semibold rounded-lg
+           hover:bg-burgundy-800 transition-all duration-300
+           shadow-wine hover:shadow-lg active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-gold-500 text-burgundy-900 font-semibold rounded-lg
+           hover:bg-gold-400 transition-all duration-300
+           shadow-gold hover:shadow-lg active:scale-95;
+  }
+
+  .btn-outline {
+    @apply px-6 py-3 border-2 border-burgundy-900 text-burgundy-900 font-semibold rounded-lg
+           hover:bg-burgundy-900 hover:text-cream-50 transition-all duration-300;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-burgundy-200 rounded-lg
+           focus:outline-none focus:ring-2 focus:ring-gold-500 focus:border-transparent
+           placeholder:text-burgundy-300 transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-wine p-6
+           hover:shadow-lg transition-shadow duration-300;
+  }
+
+  .card-wine {
+    @apply bg-gradient-to-br from-cream-50 to-white rounded-2xl shadow-wine p-6
+           border border-burgundy-100 hover:border-gold-300
+           hover:shadow-gold transition-all duration-300;
+  }
+
+  .chat-bubble-user {
+    @apply bg-burgundy-900 text-cream-50 rounded-2xl rounded-br-md px-4 py-3
+           max-w-[80%] ml-auto animate-slide-in-right;
+  }
+
+  .chat-bubble-ai {
+    @apply bg-white text-burgundy-900 rounded-2xl rounded-bl-md px-4 py-3
+           max-w-[80%] mr-auto shadow-wine animate-slide-in-right border border-burgundy-100;
+  }
+
+  .wine-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .wine-badge-red {
+    @apply wine-badge bg-burgundy-100 text-burgundy-800;
+  }
+
+  .wine-badge-white {
+    @apply wine-badge bg-amber-50 text-amber-800;
+  }
+
+  .wine-badge-rose {
+    @apply wine-badge bg-pink-100 text-pink-800;
+  }
+
+  .wine-badge-sparkling {
+    @apply wine-badge bg-yellow-100 text-yellow-800;
+  }
+
+  .glass-effect {
+    @apply bg-white/80 backdrop-blur-md;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-burgundy-900 via-burgundy-700 to-gold-600 
+           bg-clip-text text-transparent;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+}
+

@@ -1,0 +1,79 @@
+services:
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: liber-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    # NOTE: the upstream qdrant image may not ship with curl/wget; a curl-based healthcheck can
+    # mark the container as unhealthy even when Qdrant is running. We omit the healthcheck here.
+    networks:
+      - liber-network
+
+  # Flask Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: liber-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-jwt-secret-key}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      # OPENAI_API_KEY and OPENAI_MODEL are loaded from env_file (./backend/.env)
+      # Do not override them here - they come from backend/.env
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "5000:5000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    depends_on:
+      qdrant:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - ./.cursor:/app/.cursor
+      - backend_static:/app/static
+    networks:
+      - liber-network
+
+  # React Frontend (Development)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: liber-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - liber-network
+
+networks:
+  liber-network:
+    driver: bridge
+
+volumes:
+  qdrant_data:
+  backend_static:
+

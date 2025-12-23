@@ -1,0 +1,617 @@
+import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { 
+  Settings, 
+  QrCode, 
+  Download, 
+  Copy, 
+  Check, 
+  Building2,
+  Bell,
+  Save,
+  RefreshCw,
+  Loader2,
+  Plus,
+  Trash2,
+  Sparkles,
+  ChefHat
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { venueService, menuService } from '../services/api'
+import toast from 'react-hot-toast'
+
+const categoryLabels = {
+  'antipasto': 'Antipasti',
+  'primo': 'Primi Piatti',
+  'secondo': 'Secondi Piatti',
+  'contorno': 'Contorni',
+  'dolce': 'Dolci',
+  'altro': 'Altro'
+}
+
+function DashboardSettings() {
+  console.log('[DashboardSettings] Component rendering...')
+  
+  const { venue, updateVenue } = useAuth()
+  
+  console.log('[DashboardSettings] Venue from context:', venue)
+  console.log('[DashboardSettings] Venue ID:', venue?.id)
+  console.log('[DashboardSettings] Venue name:', venue?.name)
+  
+  const [copied, setCopied] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadingQR, setLoadingQR] = useState(false)
+  const [qrCodeImage, setQrCodeImage] = useState(null)
+  const [formData, setFormData] = useState({
+    name: venue?.name || '',
+    description: venue?.description || ''
+  })
+  
+  // Menu management state
+  const [menuItems, setMenuItems] = useState([])
+  const [loadingMenu, setLoadingMenu] = useState(false)
+  const [showMenuUpload, setShowMenuUpload] = useState(false)
+  const [menuText, setMenuText] = useState('')
+  const [parsingMenu, setParsingMenu] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+
+  // Customer URL with real slug
+  const customerUrl = venue?.slug 
+    ? `${window.location.origin}/v/${venue.slug}`
+    : null
+
+  // Sync formData when venue changes
+  useEffect(() => {
+    if (venue) {
+      setFormData({
+        name: venue.name || '',
+        description: venue.description || ''
+      })
+    }
+  }, [venue])
+
+  // Fetch data on mount
+  useEffect(() => {
+    if (venue?.id) {
+      fetchQRCode()
+      fetchMenu()
+    }
+  }, [venue?.id])
+
+  const fetchQRCode = async () => {
+    if (!venue?.id) return
+    
+    setLoadingQR(true)
+    try {
+      const response = await venueService.getQRCode(venue.id)
+      setQrCodeImage(response.data.qr_code_url)
+    } catch (error) {
+      console.error('Error fetching QR code:', error)
+    } finally {
+      setLoadingQR(false)
+    }
+  }
+  
+  const fetchMenu = async () => {
+    if (!venue?.id) {
+      console.log('[DashboardSettings] fetchMenu: No venue ID')
+      return
+    }
+    
+    console.log('[DashboardSettings] fetchMenu: Fetching menu for venue', venue.id)
+    setLoadingMenu(true)
+    try {
+      const response = await menuService.getMenu(venue.id)
+      console.log('[DashboardSettings] fetchMenu: Full response', response)
+      console.log('[DashboardSettings] fetchMenu: Response data', response.data)
+      
+      // API returns { items: [], grouped: {}, categories: [] }
+      if (!response || !response.data) {
+        console.warn('[DashboardSettings] fetchMenu: Invalid response structure')
+        setMenuItems([])
+        return
+      }
+      
+      const items = Array.isArray(response.data.items) ? response.data.items : []
+      console.log('[DashboardSettings] fetchMenu: Setting menu items', items.length, items)
+      setMenuItems(items)
+      
+      if (items.length === 0) {
+        console.log('[DashboardSettings] fetchMenu: No menu items found (this is OK if menu is empty)')
+      }
+    } catch (error) {
+      console.error('[DashboardSettings] Error fetching menu:', error)
+      console.error('[DashboardSettings] Error response:', error.response)
+      console.error('[DashboardSettings] Error status:', error.response?.status)
+      console.error('[DashboardSettings] Error data:', error.response?.data)
+      console.error('[DashboardSettings] Error message:', error.message)
+      
+      // Show user-friendly error
+      if (error.response?.status === 404) {
+        console.warn('[DashboardSettings] Menu endpoint not found - venue might not exist')
+      } else if (error.response?.status === 403) {
+        console.warn('[DashboardSettings] Access forbidden')
+      } else {
+        console.error('[DashboardSettings] Unexpected error fetching menu')
+      }
+      
+      setMenuItems([]) // Ensure it's always an array
+    } finally {
+      setLoadingMenu(false)
+    }
+  }
+
+  const handleRegenerateQR = async () => {
+    if (!venue?.id) return
+    
+    setLoadingQR(true)
+    try {
+      const response = await venueService.regenerateQRCode(venue.id)
+      setQrCodeImage(response.data.qr_code_url)
+      toast.success('QR Code rigenerato!')
+    } catch (error) {
+      toast.error('Errore durante la rigenerazione del QR code')
+    } finally {
+      setLoadingQR(false)
+    }
+  }
+
+  const handleCopyLink = () => {
+    if (!customerUrl) {
+      toast.error('Link non disponibile')
+      return
+    }
+    navigator.clipboard.writeText(customerUrl)
+    setCopied(true)
+    toast.success('Link copiato!')
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleSave = async () => {
+    if (!venue?.id) {
+      toast.error('Errore: venue non trovato')
+      return
+    }
+    
+    setSaving(true)
+    try {
+      const response = await venueService.updateVenue(venue.id, formData)
+      updateVenue(response.data.venue)
+      toast.success('Impostazioni salvate!')
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || 'Errore durante il salvataggio'
+      toast.error(errorMsg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDownloadQR = () => {
+    if (!qrCodeImage) {
+      toast.error('QR Code non disponibile')
+      return
+    }
+    
+    const link = document.createElement('a')
+    if (qrCodeImage.startsWith('data:')) {
+      link.href = qrCodeImage
+    } else {
+      const apiBase = import.meta.env.VITE_API_URL || ''
+      link.href = apiBase.replace('/api', '') + qrCodeImage
+    }
+    link.download = `qr-code-${venue?.slug || 'venue'}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success('QR Code scaricato!')
+  }
+  
+  // Menu management handlers
+  const handleParseMenu = async () => {
+    if (!menuText.trim()) {
+      toast.error('Inserisci il testo del menù')
+      return
+    }
+    
+    setParsingMenu(true)
+    try {
+      const response = await menuService.parseMenu(venue.id, menuText)
+      const newItems = response.data.items || []
+      
+      if (newItems.length > 0) {
+        await menuService.bulkAdd(venue.id, newItems)
+        await fetchMenu()
+        toast.success(`${newItems.length} piatti importati!`)
+      }
+      
+      setMenuText('')
+      setShowMenuUpload(false)
+    } catch (error) {
+      toast.error('Errore durante il parsing del menù')
+    } finally {
+      setParsingMenu(false)
+    }
+  }
+  
+  const handleDeleteMenuItem = async (itemId) => {
+    try {
+      await menuService.deleteItem(venue.id, itemId)
+      setMenuItems(menuItems.filter(i => i.id !== itemId))
+      toast.success('Piatto eliminato')
+    } catch (error) {
+      toast.error('Errore durante l\'eliminazione')
+    }
+  }
+  
+  const handleClearMenu = async () => {
+    if (!confirm('Sei sicuro di voler eliminare tutti i piatti?')) return
+    
+    try {
+      await menuService.clearMenu(venue.id)
+      setMenuItems([])
+      toast.success('Menù cancellato')
+    } catch (error) {
+      toast.error('Errore durante l\'eliminazione')
+    }
+  }
+
+  // Group menu items by category
+  const groupedItems = menuItems.reduce((acc, item) => {
+    const cat = item.category || 'altro'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(item)
+    return acc
+  }, {})
+
+  // Early return if venue is not loaded yet
+  if (!venue) {
+    console.log('[DashboardSettings] Venue is null/undefined, showing loader')
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-burgundy-400 animate-spin mx-auto mb-4" />
+          <p className="text-burgundy-600">Caricamento impostazioni...</p>
+          <p className="text-burgundy-400 text-sm mt-2">
+            Se il caricamento non termina, prova a effettuare nuovamente il login.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      {/* Header */}
+      <div>
+        <h1 className="font-display text-3xl font-bold text-burgundy-900 flex items-center gap-3">
+          <Settings className="w-8 h-8 text-gold-500" />
+          Impostazioni
+        </h1>
+        <p className="text-burgundy-600 mt-1">
+          Configura il tuo locale e il sommelier AI
+        </p>
+      </div>
+
+      {/* QR Code Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="card"
+      >
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+            <QrCode className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-semibold text-burgundy-900">
+              QR Code
+            </h2>
+            <p className="text-sm text-burgundy-600">
+              Stampa e posiziona sui tavoli per far accedere i clienti al sommelier
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-6">
+          <div className="w-48 h-48 bg-white border-2 border-burgundy-200 rounded-2xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+            {loadingQR ? (
+              <Loader2 className="w-8 h-8 text-burgundy-400 animate-spin" />
+            ) : qrCodeImage ? (
+              <img 
+                src={qrCodeImage.startsWith('data:') || qrCodeImage.startsWith('http') 
+                  ? qrCodeImage 
+                  : `${(import.meta.env.VITE_API_URL || '').replace('/api', '')}${qrCodeImage}`
+                }
+                alt="QR Code"
+                className="w-full h-full object-contain p-2"
+              />
+            ) : (
+              <div className="text-center">
+                <QrCode className="w-20 h-20 text-burgundy-300 mx-auto mb-2" />
+                <p className="text-xs text-burgundy-400">QR non generato</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-burgundy-700 mb-2">
+                Link per i clienti
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customerUrl || 'Slug non disponibile'}
+                  readOnly
+                  className="input-field flex-1 bg-cream-50"
+                />
+                <button
+                  onClick={handleCopyLink}
+                  className="btn-outline px-4"
+                  disabled={!customerUrl}
+                >
+                  {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={handleDownloadQR} 
+                className="btn-primary flex items-center gap-2"
+                disabled={!qrCodeImage || loadingQR}
+              >
+                <Download className="w-4 h-4" />
+                Scarica QR Code
+              </button>
+              <button 
+                onClick={handleRegenerateQR}
+                className="btn-outline flex items-center gap-2"
+                disabled={loadingQR}
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingQR ? 'animate-spin' : ''}`} />
+                Rigenera
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Menu Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="card"
+      >
+        <div className="flex items-start justify-between gap-3 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-gold-100 rounded-xl flex items-center justify-center">
+              <ChefHat className="w-5 h-5 text-gold-600" />
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-semibold text-burgundy-900">
+                Menù Piatti
+              </h2>
+              <p className="text-sm text-burgundy-600">
+                {menuItems.length} piatti in menù
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowMenuUpload(!showMenuUpload)}
+              className="btn-outline flex items-center gap-2 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Aggiungi piatti
+            </button>
+            {menuItems.length > 0 && (
+              <button
+                onClick={handleClearMenu}
+                className="btn-outline text-red-600 border-red-200 hover:bg-red-50 text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Menu Upload Form */}
+        {showMenuUpload && (
+          <div className="mb-6 p-4 bg-gold-50 rounded-xl border border-gold-200">
+            <h3 className="font-semibold text-burgundy-900 mb-3">Carica menù</h3>
+            <textarea
+              value={menuText}
+              onChange={(e) => setMenuText(e.target.value)}
+              placeholder={`Incolla qui il tuo menù...
+
+Esempio:
+ANTIPASTI
+Bruschetta al pomodoro - €8
+Carpaccio di manzo - €14
+
+PRIMI PIATTI
+Spaghetti alle vongole - €16
+Risotto ai funghi - €18`}
+              className="w-full h-40 p-3 border border-gold-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gold-400 text-sm"
+            />
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={handleParseMenu}
+                disabled={!menuText.trim() || parsingMenu}
+                className="btn-primary flex items-center gap-2"
+              >
+                {parsingMenu ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {parsingMenu ? 'Elaborazione...' : 'Estrai con AI'}
+              </button>
+              <button
+                onClick={() => { setShowMenuUpload(false); setMenuText('') }}
+                className="btn-outline"
+              >
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Menu List */}
+        {loadingMenu ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-gold-400 animate-spin" />
+          </div>
+        ) : menuItems.length === 0 ? (
+          <div className="text-center py-8 text-burgundy-500">
+            <ChefHat className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p>Nessun piatto in menù</p>
+            <p className="text-sm">Clicca "Aggiungi piatti" per iniziare</p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+            {Object.entries(categoryLabels).map(([catKey, catLabel]) => {
+              const catItems = groupedItems[catKey]
+              if (!catItems || catItems.length === 0) return null
+              
+              return (
+                <div key={catKey}>
+                  <h3 className="font-medium text-burgundy-800 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-gold-500"></span>
+                    {catLabel} ({catItems.length})
+                  </h3>
+                  <div className="space-y-1">
+                    {catItems.map(item => (
+                      <div 
+                        key={item.id}
+                        className="flex items-center gap-2 p-2 bg-white rounded-lg border border-burgundy-100 text-sm"
+                      >
+                        <span className="flex-1 text-burgundy-900">{item.name}</span>
+                        {item.price && (
+                          <span className="text-gold-600 font-medium">€{item.price}</span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteMenuItem(item.id)}
+                          className="p-1 text-red-400 hover:text-red-600 rounded"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Venue Info Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="card"
+      >
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+            <Building2 className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-semibold text-burgundy-900">
+              Informazioni Locale
+            </h2>
+            <p className="text-sm text-burgundy-600">
+              Dati del tuo ristorante
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          <div>
+            <label className="block text-sm font-medium text-burgundy-700 mb-2">
+              Nome del Ristorante
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-burgundy-700 mb-2">
+              Descrizione
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              className="input-field"
+              rows={3}
+            />
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Notifications */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="card"
+      >
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+            <Bell className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-semibold text-burgundy-900">
+              Notifiche
+            </h2>
+            <p className="text-sm text-burgundy-600">
+              Gestisci le tue preferenze di notifica
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <label className="flex items-center justify-between p-4 bg-cream-50 rounded-xl cursor-pointer">
+            <div>
+              <p className="font-medium text-burgundy-900">Report settimanale</p>
+              <p className="text-sm text-burgundy-600">Ricevi un riepilogo via email</p>
+            </div>
+            <input type="checkbox" defaultChecked className="w-5 h-5 text-burgundy-900 rounded" />
+          </label>
+          <label className="flex items-center justify-between p-4 bg-cream-50 rounded-xl cursor-pointer">
+            <div>
+              <p className="font-medium text-burgundy-900">Suggerimenti AI</p>
+              <p className="text-sm text-burgundy-600">Notifiche su nuovi suggerimenti per la carta</p>
+            </div>
+            <input type="checkbox" defaultChecked className="w-5 h-5 text-burgundy-900 rounded" />
+          </label>
+        </div>
+      </motion.div>
+
+      {/* Save Button */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="flex justify-end"
+      >
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary flex items-center gap-2"
+        >
+          <Save className="w-5 h-5" />
+          {saving ? 'Salvataggio...' : 'Salva Modifiche'}
+        </button>
+      </motion.div>
+    </div>
+  )
+}
+
+export default DashboardSettings

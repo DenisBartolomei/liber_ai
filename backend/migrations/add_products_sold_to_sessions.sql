@@ -1,0 +1,3 @@
+ALTER TABLE sessions 
+ADD COLUMN IF NOT EXISTS products_sold JSONB;
+
