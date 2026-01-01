@@ -2,7 +2,7 @@
 Venue Routes for LIBER Sommelier AI
 """
 import logging
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from app.models import Venue, User
@@ -75,6 +75,16 @@ def update_venue(venue_id):
     data = request.get_json()
     logger.info(f"Updating venue {venue_id} with data: {list(data.keys()) if data else 'None'}")
     
+    # Handle featured_wines separately with validation
+    if 'featured_wines' in data:
+        featured_wines = data.get('featured_wines', [])
+        success, message = venue.set_featured_wines(featured_wines)
+        if not success:
+            return jsonify({'message': message}), 400
+        # featured_wines is now saved in venue.preferences via set_featured_wines
+        # Remove from data to avoid double processing
+        data.pop('featured_wines')
+    
     # Update allowed fields
     updatable_fields = [
         'name', 'description', 'cuisine_type', 'menu_style', 
@@ -128,14 +138,36 @@ def get_qr_code(venue_id):
     qr_service = QRGeneratorService()
     qr_base64 = qr_service.generate_base64(venue)
     
-    # Also save file version if not exists
+    # Also save file version if not exists (returns storage path like "qrcodes/qr_slug.png")
+    storage_path = None
     if not venue.qr_code_url:
-        venue.qr_code_url = qr_service.generate_for_venue(venue)
+        storage_path = qr_service.generate_for_venue(venue)
+        venue.qr_code_url = storage_path
         db.session.commit()
+    else:
+        storage_path = venue.qr_code_url
+    
+    # Generate signed URL for download (bucket is private)
+    signed_url = None
+    if storage_path:
+        # Extract filename from storage path (format: "qrcodes/qr_slug.png" or "qrcodes/qr_slug.png")
+        from app.services.supabase_storage import SupabaseStorageService
+        storage_service = SupabaseStorageService()
+        qr_bucket = current_app.config.get('SUPABASE_STORAGE_BUCKET_QRCODES', 'qrcodes')
+        
+        # Extract filename (everything after the bucket name and slash)
+        if '/' in storage_path:
+            filename = storage_path.split('/', 1)[1] if storage_path.startswith(f"{qr_bucket}/") else storage_path
+        else:
+            filename = storage_path
+        
+        # Generate signed URL (valid for 1 hour)
+        signed_url = storage_service.get_signed_url(qr_bucket, filename, expires_in=3600)
     
     return jsonify({
         'qr_code_url': f"data:image/png;base64,{qr_base64}",
-        'qr_code_file': venue.qr_code_url,
+        'qr_code_storage_path': storage_path,
+        'qr_code_download_url': signed_url,  # Signed URL for download (bucket is private)
         'venue_url': f"/v/{venue.slug}"
     }), 200
 
@@ -158,14 +190,32 @@ def regenerate_qr_code(venue_id):
     qr_service = QRGeneratorService()
     
     # Regenerate file and get base64
-    venue.qr_code_url = qr_service.generate_for_venue(venue, force_regenerate=True)
+    storage_path = qr_service.generate_for_venue(venue, force_regenerate=True)
+    venue.qr_code_url = storage_path
     qr_base64 = qr_service.generate_base64(venue)
     db.session.commit()
+    
+    # Generate signed URL for download (bucket is private)
+    signed_url = None
+    if storage_path:
+        from app.services.supabase_storage import SupabaseStorageService
+        storage_service = SupabaseStorageService()
+        qr_bucket = current_app.config.get('SUPABASE_STORAGE_BUCKET_QRCODES', 'qrcodes')
+        
+        # Extract filename from storage path
+        if '/' in storage_path:
+            filename = storage_path.split('/', 1)[1] if storage_path.startswith(f"{qr_bucket}/") else storage_path
+        else:
+            filename = storage_path
+        
+        # Generate signed URL (valid for 1 hour)
+        signed_url = storage_service.get_signed_url(qr_bucket, filename, expires_in=3600)
     
     return jsonify({
         'message': 'QR code rigenerato',
         'qr_code_url': f"data:image/png;base64,{qr_base64}",
-        'qr_code_file': venue.qr_code_url,
+        'qr_code_storage_path': storage_path,
+        'qr_code_download_url': signed_url,  # Signed URL for download (bucket is private)
         'venue_url': f"/v/{venue.slug}"
     }), 200
 

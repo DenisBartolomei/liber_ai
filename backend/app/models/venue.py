@@ -71,7 +71,8 @@ class Venue(db.Model):
             'is_active': self.is_active,
             'is_onboarded': self.is_onboarded,
             'plan': self.plan,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'featured_wines': self.get_featured_wines()  # Include featured wines for easy access
         }
         
         if include_stats:
@@ -82,6 +83,66 @@ class Venue(db.Model):
             }
         
         return data
+    
+    def get_featured_wines(self):
+        """
+        Get list of featured wine product IDs from preferences.
+        
+        Returns:
+            List of product IDs (max 2), empty list if none set
+        """
+        if not self.preferences or not isinstance(self.preferences, dict):
+            return []
+        
+        featured = self.preferences.get('featured_wines', [])
+        if not isinstance(featured, list):
+            return []
+        
+        # Ensure all are integers and filter out invalid values
+        return [int(wid) for wid in featured if isinstance(wid, (int, str)) and str(wid).isdigit()][:2]
+    
+    def set_featured_wines(self, product_ids):
+        """
+        Set featured wines in preferences.
+        Validates that products exist, belong to venue, and are available.
+        
+        Args:
+            product_ids: List of product IDs (max 2)
+            
+        Returns:
+            Tuple (success: bool, message: str)
+        """
+        if not isinstance(product_ids, list):
+            return False, "featured_wines deve essere una lista"
+        
+        if len(product_ids) > 2:
+            return False, "Massimo 2 vini possono essere selezionati come vini in evidenza"
+        
+        # Validate product IDs
+        from app.models import Product
+        for product_id in product_ids:
+            if not isinstance(product_id, int):
+                try:
+                    product_id = int(product_id)
+                except (ValueError, TypeError):
+                    return False, f"ID prodotto non valido: {product_id}"
+            
+            product = Product.query.get(product_id)
+            if not product:
+                return False, f"Prodotto con ID {product_id} non trovato"
+            
+            if product.venue_id != self.id:
+                return False, f"Prodotto con ID {product_id} non appartiene a questo locale"
+            
+            if not product.is_available:
+                return False, f"Prodotto con ID {product_id} non è disponibile"
+        
+        # Update preferences
+        if not self.preferences or not isinstance(self.preferences, dict):
+            self.preferences = {}
+        
+        self.preferences['featured_wines'] = product_ids
+        return True, "Vini in evidenza aggiornati con successo"
     
     @staticmethod
     def generate_slug(name):

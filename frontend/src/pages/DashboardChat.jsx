@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Wine, Sparkles, Trash2, RefreshCw } from 'lucide-react'
 import { useChat } from '../hooks/useChat'
-import { LoadingDots } from '../components/ui/LoadingSpinner'
+import { ThinkingMessages } from '../components/ui/LoadingSpinner'
 import WineCard from '../components/chat/WineCard'
 
 function DashboardChat() {
@@ -144,7 +144,7 @@ function DashboardChat() {
                     <Sparkles className="w-5 h-5 text-burgundy-900" />
                   </div>
                   <div className="chat-bubble-ai">
-                    <LoadingDots />
+                    <ThinkingMessages />
                   </div>
                 </motion.div>
               )}

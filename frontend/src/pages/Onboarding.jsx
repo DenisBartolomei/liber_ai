@@ -8,22 +8,17 @@ import {
   ArrowLeft,
   Check,
   Upload,
-  Sparkles,
-  FileText,
   Trash2,
   Edit3,
   Plus,
   Save,
-  Loader2,
-  Wine,
-  Camera,
-  Image as ImageIcon,
-  X
+  Wine
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { venueService, menuService, productService } from '../services/api'
 import toast from 'react-hot-toast'
 import Logo from '../components/ui/Logo'
+import CsvWineUpload from '../components/onboarding/CsvWineUpload'
 
 const steps = [
   {
@@ -35,7 +30,7 @@ const steps = [
   {
     id: 'wines',
     title: 'Carta dei Vini',
-    description: 'Carica foto o testo della carta vini - l\'AI estrarrà tutto automaticamente',
+    description: 'Carica un file CSV con la lista dei vini',
     icon: Wine
   },
   {
@@ -99,16 +94,12 @@ function Onboarding() {
   const [editingItem, setEditingItem] = useState(null)
   const [newDishName, setNewDishName] = useState('')
   const [newDishCategory, setNewDishCategory] = useState('primo')
+  const [newDishMainIngredient, setNewDishMainIngredient] = useState('')
+  const [newDishCookingMethod, setNewDishCookingMethod] = useState('')
   
-  // Wine state - enhanced with image upload
-  const [wineText, setWineText] = useState('')
+  // Wine state - CSV upload only
   const [parsedWines, setParsedWines] = useState([])
-  const [isParsingWines, setIsParsingWines] = useState(false)
   const [editingWine, setEditingWine] = useState(null)
-  const [wineUploadMode, setWineUploadMode] = useState('choose') // 'choose', 'text', 'image'
-  const [wineImages, setWineImages] = useState([])
-  const [imagePreviewUrls, setImagePreviewUrls] = useState([])
-  const fileInputRef = useRef(null)
   
   const { venue, updateVenue } = useAuth()
   const navigate = useNavigate()
@@ -129,107 +120,16 @@ function Onboarding() {
       id: `menu-${Date.now()}`,
       name: newDishName.trim(),
       category: newDishCategory,
-      description: ''
+      main_ingredient: newDishMainIngredient.trim() || null,
+      cooking_method: newDishCookingMethod.trim() || null
     }
     setParsedItems([...parsedItems, newItem])
     setNewDishName('')
+    setNewDishMainIngredient('')
+    setNewDishCookingMethod('')
     toast.success('Piatto aggiunto!')
   }
   
-  // Handle image upload for wine list
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files)
-    if (files.length === 0) return
-    
-    // Limit to 5 images max
-    const maxImages = 5
-    const newImages = files.slice(0, maxImages - wineImages.length)
-    
-    if (newImages.length < files.length) {
-      toast.error(`Massimo ${maxImages} immagini consentite`)
-    }
-    
-    // Create preview URLs
-    const newPreviewUrls = newImages.map(file => URL.createObjectURL(file))
-    
-    setWineImages(prev => [...prev, ...newImages])
-    setImagePreviewUrls(prev => [...prev, ...newPreviewUrls])
-  }
-  
-  const removeImage = (index) => {
-    URL.revokeObjectURL(imagePreviewUrls[index])
-    setWineImages(prev => prev.filter((_, i) => i !== index))
-    setImagePreviewUrls(prev => prev.filter((_, i) => i !== index))
-  }
-  
-  // Parse wine list from images using AI Vision
-  const handleParseWineImages = async () => {
-    if (wineImages.length === 0) {
-      toast.error('Carica almeno un\'immagine della carta vini')
-      return
-    }
-    
-    setIsParsingWines(true)
-    try {
-      // Convert images to base64
-      const base64Images = await Promise.all(
-        wineImages.map(file => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.onload = () => resolve(reader.result)
-            reader.onerror = reject
-            reader.readAsDataURL(file)
-          })
-        })
-      )
-      
-      const response = await productService.parseWineImages(venue.id, base64Images)
-      const wines = (response.data.wines || []).map((wine, idx) => ({
-        ...wine,
-        id: `wine-${idx}`
-      }))
-      setParsedWines(wines)
-      toast.success(`${wines.length} vini estratti dalle immagini!`)
-    } catch (error) {
-      console.error('Error parsing wine images:', error)
-      toast.error('Errore nell\'estrazione. Riprova con immagini più chiare.')
-    } finally {
-      setIsParsingWines(false)
-    }
-  }
-  
-  // Parse wine list from text using AI
-  const handleParseWines = async () => {
-    if (!wineText.trim()) {
-      toast.error('Inserisci il testo della carta vini')
-      return
-    }
-    
-    setIsParsingWines(true)
-    try {
-      const response = await productService.parseWineList(venue.id, wineText)
-      const wines = (response.data.wines || []).map((wine, idx) => ({
-        ...wine,
-        id: `wine-${idx}`
-      }))
-      setParsedWines(wines)
-      toast.success(`${wines.length} vini estratti!`)
-    } catch (error) {
-      // Fallback: simple parsing
-      const lines = wineText.split('\n').filter(l => l.trim())
-      const wines = lines.map((line, idx) => ({
-        id: `wine-${idx}`,
-        name: line.trim(),
-        type: 'red',
-        region: null,
-        price: null
-      }))
-      setParsedWines(wines)
-      toast.success(`${wines.length} vini estratti (modalità base)`)
-    } finally {
-      setIsParsingWines(false)
-    }
-  }
 
   const handleAddItem = () => {
     setEditingItem(`new-${Date.now()}`)
@@ -332,7 +232,8 @@ function Onboarding() {
       }
       
       // Save wines with normalized data
-      const validWines = parsedWines.filter(wine => wine.name?.trim())
+      const winesToSave = parsedWines
+      const validWines = winesToSave.filter(wine => wine.name?.trim())
       if (validWines.length > 0) {
         try {
           // Normalize wine data - ensure all required fields are present
@@ -348,12 +249,38 @@ function Onboarding() {
             description: wine.description || null,
             tasting_notes: wine.tasting_notes || null,
             food_pairings: wine.food_pairings || null,
+            image_url: wine.image_url || null,
+            color: wine.color || null,
+            aromas: wine.aromas || null,
+            body: wine.body || null,
+            acidity_level: wine.acidity_level || null,
+            tannin_level: wine.tannin_level || null,
             is_available: true
           }))
           
           console.log('Saving wines:', normalizedWines.length, normalizedWines)
           const importResponse = await productService.bulkImport(venue.id, normalizedWines)
           console.log('Wine import response:', importResponse.data)
+          
+          // Upload label images if any wines have image_file
+          const winesWithImages = validWines.filter(w => w.image_file)
+          if (winesWithImages.length > 0) {
+            // Get saved products to match by name and upload images
+            const savedProducts = await productService.getProducts(venue.id)
+            for (const wineWithImage of winesWithImages) {
+              const savedProduct = savedProducts.data.find(p => 
+                p.name === wineWithImage.name && p.type === wineWithImage.type
+              )
+              if (savedProduct && savedProduct.id) {
+                try {
+                  await productService.uploadLabelImage(savedProduct.id, wineWithImage.image_file)
+                  console.log(`Image uploaded for wine ${savedProduct.id}`)
+                } catch (e) {
+                  console.warn(`Failed to upload image for wine ${savedProduct.id}:`, e)
+                }
+              }
+            }
+          }
           
           // Sync to Qdrant
           try {
@@ -520,31 +447,49 @@ function Onboarding() {
                       </div>
                     </div>
                     
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newDishName}
-                        onChange={(e) => setNewDishName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddDish()}
-                        placeholder="Nome del piatto (es. Tagliatelle al ragù)"
-                        className="flex-1 px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-                      />
-                      <select
-                        value={newDishCategory}
-                        onChange={(e) => setNewDishCategory(e.target.value)}
-                        className="px-3 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
-                      >
-                        {Object.entries(categoryLabels).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newDishName}
+                          onChange={(e) => setNewDishName(e.target.value)}
+                          placeholder="Nome del piatto *"
+                          className="flex-1 px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                          required
+                        />
+                        <select
+                          value={newDishCategory}
+                          onChange={(e) => setNewDishCategory(e.target.value)}
+                          className="px-3 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                        >
+                          {Object.entries(categoryLabels).map(([k, v]) => (
+                            <option key={k} value={k}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={newDishMainIngredient}
+                          onChange={(e) => setNewDishMainIngredient(e.target.value)}
+                          placeholder="Ingrediente principale (es. Manzo, Pesce, Pasta)"
+                          className="px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                        />
+                        <input
+                          type="text"
+                          value={newDishCookingMethod}
+                          onChange={(e) => setNewDishCookingMethod(e.target.value)}
+                          placeholder="Metodo di cottura (es. Griglia, Al forno, Crudo)"
+                          className="px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                        />
+                      </div>
                       <button
                         onClick={handleAddDish}
                         disabled={!newDishName.trim()}
-                        className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="w-full px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         <Plus className="w-5 h-5" />
-                        Aggiungi
+                        Aggiungi Piatto
                       </button>
                     </div>
                   </div>
@@ -584,34 +529,64 @@ function Onboarding() {
                                     className="bg-white rounded-lg border border-burgundy-100 p-2 flex items-center gap-2"
                                   >
                                     {editingItem === item.id ? (
-                                      <div className="flex-1 flex gap-2">
-                                        <input
-                                          type="text"
-                                          value={item.name}
-                                          onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
-                                          className="flex-1 px-2 py-1 border border-burgundy-200 rounded text-sm"
-                                          placeholder="Nome piatto"
-                                          autoFocus
-                                        />
-                                        <select
-                                          value={item.category}
-                                          onChange={(e) => handleUpdateItem(item.id, 'category', e.target.value)}
-                                          className="px-2 py-1 border border-burgundy-200 rounded text-sm"
-                                        >
-                                          {Object.entries(categoryLabels).map(([k, v]) => (
-                                            <option key={k} value={k}>{v}</option>
-                                          ))}
-                                        </select>
-                                        <button
-                                          onClick={() => setEditingItem(null)}
-                                          className="p-1 text-green-600 hover:bg-green-50 rounded"
-                                        >
-                                          <Save className="w-4 h-4" />
-                                        </button>
+                                      <div className="flex-1 space-y-2">
+                                        <div className="flex gap-2">
+                                          <input
+                                            type="text"
+                                            value={item.name}
+                                            onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
+                                            className="flex-1 px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                            placeholder="Nome piatto"
+                                            autoFocus
+                                          />
+                                          <select
+                                            value={item.category}
+                                            onChange={(e) => handleUpdateItem(item.id, 'category', e.target.value)}
+                                            className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                          >
+                                            {Object.entries(categoryLabels).map(([k, v]) => (
+                                              <option key={k} value={k}>{v}</option>
+                                            ))}
+                                          </select>
+                                          <button
+                                            onClick={() => setEditingItem(null)}
+                                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                          >
+                                            <Save className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <input
+                                            type="text"
+                                            value={item.main_ingredient || ''}
+                                            onChange={(e) => handleUpdateItem(item.id, 'main_ingredient', e.target.value)}
+                                            className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                            placeholder="Ingrediente principale"
+                                          />
+                                          <input
+                                            type="text"
+                                            value={item.cooking_method || ''}
+                                            onChange={(e) => handleUpdateItem(item.id, 'cooking_method', e.target.value)}
+                                            className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                            placeholder="Metodo di cottura"
+                                          />
+                                        </div>
                                       </div>
                                     ) : (
                                       <>
-                                        <span className="flex-1 text-burgundy-900 text-sm">{item.name}</span>
+                                        <div className="flex-1">
+                                          <span className="text-burgundy-900 text-sm font-medium block">{item.name}</span>
+                                          {(item.main_ingredient || item.cooking_method) && (
+                                            <div className="flex gap-2 mt-1">
+                                              {item.main_ingredient && (
+                                                <span className="text-xs text-burgundy-500">Ingrediente: {item.main_ingredient}</span>
+                                              )}
+                                              {item.cooking_method && (
+                                                <span className="text-xs text-burgundy-500">Cottura: {item.cooking_method}</span>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                         <button
                                           onClick={() => setEditingItem(item.id)}
                                           className="p-1 text-burgundy-400 hover:text-burgundy-600 hover:bg-burgundy-50 rounded"
@@ -646,215 +621,32 @@ function Onboarding() {
                 </div>
               )}
 
-              {/* Step 2: Wine List Upload - Image or Text */}
+              {/* Step 2: Wine List Upload - CSV Only */}
               {currentStep === 1 && (
                 <div className="space-y-6">
                   {parsedWines.length === 0 ? (
-                    <>
-                      {/* Mode Selection */}
-                      {wineUploadMode === 'choose' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <button
-                            onClick={() => setWineUploadMode('image')}
-                            className="bg-white rounded-xl border-2 border-burgundy-200 p-6 hover:border-burgundy-400 transition-colors text-left group"
-                          >
-                            <div className="w-14 h-14 bg-burgundy-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-burgundy-200 transition-colors">
-                              <Camera className="w-7 h-7 text-burgundy-600" />
-                            </div>
-                            <h3 className="font-semibold text-burgundy-900 mb-1">
-                              📷 Carica Foto
-                            </h3>
-                            <p className="text-sm text-burgundy-600">
-                              Scatta o carica foto della tua carta dei vini. L'AI leggerà il testo automaticamente.
-                            </p>
-                            <span className="inline-block mt-3 text-xs font-medium text-burgundy-500 bg-burgundy-50 px-2 py-1 rounded">
-                              Consigliato
-                            </span>
-                          </button>
-                          
-                          <button
-                            onClick={() => setWineUploadMode('text')}
-                            className="bg-white rounded-xl border-2 border-burgundy-200 p-6 hover:border-burgundy-400 transition-colors text-left group"
-                          >
-                            <div className="w-14 h-14 bg-gold-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-gold-200 transition-colors">
-                              <FileText className="w-7 h-7 text-gold-600" />
-                            </div>
-                            <h3 className="font-semibold text-burgundy-900 mb-1">
-                              📝 Incolla Testo
-                            </h3>
-                            <p className="text-sm text-burgundy-600">
-                              Copia e incolla il testo della carta vini da un documento digitale.
-                            </p>
-                          </button>
+                    <div className="bg-white rounded-xl border-2 border-dashed border-burgundy-200 p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                          <Upload className="w-6 h-6 text-green-600" />
                         </div>
-                      )}
+                        <div>
+                          <h3 className="font-semibold text-burgundy-900">
+                            Carica file CSV
+                          </h3>
+                          <p className="text-sm text-burgundy-600">
+                            Il CSV deve contenere: nome, tipo, prezzo (obbligatori) e opzionalmente regione, vitigno, anno, produttore
+                          </p>
+                        </div>
+                      </div>
                       
-                      {/* Image Upload Mode */}
-                      {wineUploadMode === 'image' && (
-                        <div className="bg-white rounded-xl border-2 border-dashed border-burgundy-200 p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-burgundy-100 rounded-xl flex items-center justify-center">
-                                <Camera className="w-6 h-6 text-burgundy-600" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-burgundy-900">
-                                  Carica foto della carta vini
-                                </h3>
-                                <p className="text-sm text-burgundy-600">
-                                  Puoi caricare fino a 5 foto. L'AI estrarrà tutti i vini.
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => { setWineUploadMode('choose'); setWineImages([]); setImagePreviewUrls([]) }}
-                              className="text-burgundy-400 hover:text-burgundy-600"
-                            >
-                              <ArrowLeft className="w-5 h-5" />
-                            </button>
-                          </div>
-                          
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            accept="image/*"
-                            multiple
-                            onChange={handleImageUpload}
-                            className="hidden"
-                          />
-                          
-                          {/* Image previews */}
-                          {imagePreviewUrls.length > 0 && (
-                            <div className="grid grid-cols-3 gap-3 mb-4">
-                              {imagePreviewUrls.map((url, idx) => (
-                                <div key={idx} className="relative aspect-[3/4] rounded-lg overflow-hidden bg-burgundy-50">
-                                  <img 
-                                    src={url} 
-                                    alt={`Pagina ${idx + 1}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <button
-                                    onClick={() => removeImage(idx)}
-                                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                  <span className="absolute bottom-1 left-1 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">
-                                    {idx + 1}
-                                  </span>
-                                </div>
-                              ))}
-                              
-                              {imagePreviewUrls.length < 5 && (
-                                <button
-                                  onClick={() => fileInputRef.current?.click()}
-                                  className="aspect-[3/4] rounded-lg border-2 border-dashed border-burgundy-200 flex flex-col items-center justify-center gap-2 text-burgundy-400 hover:border-burgundy-400 hover:text-burgundy-600 transition-colors"
-                                >
-                                  <Plus className="w-8 h-8" />
-                                  <span className="text-xs">Aggiungi</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                          
-                          {imagePreviewUrls.length === 0 && (
-                            <button
-                              onClick={() => fileInputRef.current?.click()}
-                              className="w-full py-12 border-2 border-dashed border-burgundy-200 rounded-lg flex flex-col items-center justify-center gap-3 text-burgundy-500 hover:border-burgundy-400 hover:bg-burgundy-50 transition-colors"
-                            >
-                              <div className="w-16 h-16 bg-burgundy-100 rounded-full flex items-center justify-center">
-                                <Upload className="w-8 h-8 text-burgundy-500" />
-                              </div>
-                              <div className="text-center">
-                                <p className="font-medium text-burgundy-700">Clicca per caricare le foto</p>
-                                <p className="text-sm text-burgundy-400">o trascinale qui</p>
-                              </div>
-                            </button>
-                          )}
-                          
-                          {imagePreviewUrls.length > 0 && (
-                            <button
-                              onClick={handleParseWineImages}
-                              disabled={isParsingWines}
-                              className="mt-4 btn-primary w-full flex items-center justify-center gap-2"
-                            >
-                              {isParsingWines ? (
-                                <>
-                                  <Loader2 className="w-5 h-5 animate-spin" />
-                                  Estrazione in corso... (può richiedere 30 secondi)
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="w-5 h-5" />
-                                  Estrai vini dalle foto con AI
-                                </>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Text Input Mode */}
-                      {wineUploadMode === 'text' && (
-                        <div className="bg-white rounded-xl border-2 border-dashed border-burgundy-200 p-6">
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-gold-100 rounded-xl flex items-center justify-center">
-                                <FileText className="w-6 h-6 text-gold-600" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-burgundy-900">
-                                  Incolla il testo della carta vini
-                                </h3>
-                                <p className="text-sm text-burgundy-600">
-                                  L'AI estrarrà automaticamente nome, tipo, regione e prezzo.
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => { setWineUploadMode('choose'); setWineText('') }}
-                              className="text-burgundy-400 hover:text-burgundy-600"
-                            >
-                              <ArrowLeft className="w-5 h-5" />
-                            </button>
-                          </div>
-                          
-                          <textarea
-                            value={wineText}
-                            onChange={(e) => setWineText(e.target.value)}
-                            placeholder={`Incolla qui la tua carta dei vini...
-
-Esempio:
-VINI ROSSI
-Brunello di Montalcino DOCG 2018 - Biondi Santi - €85
-Barolo DOCG 2017 - Marchesi di Barolo - €120
-
-VINI BIANCHI
-Gavi di Gavi DOCG 2022 - €35
-Vermentino di Sardegna DOC 2023 - €28`}
-                            className="w-full h-56 p-4 border border-burgundy-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-burgundy-400 text-sm"
-                          />
-                          
-                          <button
-                            onClick={handleParseWines}
-                            disabled={!wineText.trim() || isParsingWines}
-                            className="mt-4 btn-primary w-full flex items-center justify-center gap-2"
-                          >
-                            {isParsingWines ? (
-                              <>
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Estrazione in corso...
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-5 h-5" />
-                                Estrai vini con AI
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </>
+                      <CsvWineUpload
+                        venueId={venue?.id}
+                        onWinesParsed={(wines) => {
+                          setParsedWines(wines)
+                        }}
+                      />
+                    </div>
                   ) : (
                     <>
                       <div className="flex items-center justify-between mb-4">
@@ -872,10 +664,6 @@ Vermentino di Sardegna DOC 2023 - €28`}
                           <button
                             onClick={() => { 
                               setParsedWines([])
-                              setWineText('')
-                              setWineImages([])
-                              setImagePreviewUrls([])
-                              setWineUploadMode('choose')
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100"
                           >
@@ -884,6 +672,7 @@ Vermentino di Sardegna DOC 2023 - €28`}
                           </button>
                         </div>
                       </div>
+
 
                       {/* Grouped wines */}
                       <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2">

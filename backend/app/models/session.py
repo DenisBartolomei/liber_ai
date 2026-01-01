@@ -205,6 +205,65 @@ class Session(db.Model):
                 except (ValueError, TypeError):
                     pass
     
+    def save_preferences_from_context(self):
+        """
+        Extract and save all deterministic preferences from context to session.
+        This ensures preferences are persisted and can be retrieved later.
+        
+        Saves:
+        - guest_count (in context)
+        - wine_type, journey_preference, budget, bottles_count (in context.preferences)
+        - All preferences are also kept in context for AI processing
+        """
+        if not self.context:
+            return
+        
+        # Ensure context has a structured format
+        if not isinstance(self.context, dict):
+            self.context = {}
+        
+        # Extract and save budget
+        self.extract_budget_from_context()
+        
+        # Extract and save bottles count
+        self.extract_bottiglie_from_context()
+        
+        # Ensure preferences structure exists in context
+        if 'preferences' not in self.context:
+            self.context['preferences'] = {}
+        
+        # Normalize and validate preferences structure
+        preferences = self.context.get('preferences', {})
+        
+        # Ensure all preference fields are properly set
+        # wine_type: 'red', 'white', 'sparkling', 'rose', 'any'
+        if 'wine_type' not in preferences or preferences.get('wine_type') is None:
+            preferences['wine_type'] = 'any'
+        
+        # journey_preference: 'single' or 'journey'
+        if 'journey_preference' not in preferences or preferences.get('journey_preference') is None:
+            preferences['journey_preference'] = 'single'
+        
+        # budget: numeric value, 'nolimit', or None
+        if 'budget' not in preferences:
+            preferences['budget'] = None
+        
+        # bottles_count: integer or None (only for journey mode)
+        if 'bottles_count' not in preferences:
+            if preferences.get('journey_preference') == 'journey':
+                # Use num_bottiglie_target if available, otherwise None
+                preferences['bottles_count'] = self.num_bottiglie_target
+            else:
+                preferences['bottles_count'] = None
+        
+        # Update context with normalized preferences
+        self.context['preferences'] = preferences
+        
+        # Ensure guest_count is in context (not in preferences)
+        if 'guest_count' not in self.context:
+            # Default to 2 if not provided
+            self.context['guest_count'] = 2
+    
     @property
     def duration_minutes(self):
         """Calculate session duration in minutes"""

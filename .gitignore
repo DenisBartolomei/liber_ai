@@ -67,6 +67,7 @@ frontend/build/
 # ===========================================
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 *~

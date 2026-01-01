@@ -3,10 +3,6 @@ Message Model - Represents a single message in a chat session
 """
 from datetime import datetime
 from app import db
-# region agent log
-from app.utils.debug_log import dbg
-dbg("A", "backend/app/models/message.py:8", "import_message_module_enter", {"note": "about to declare Message model"})
-# endregion
 
 
 class Message(db.Model):

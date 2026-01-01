@@ -5,6 +5,7 @@ Generates QR codes for venues to share with customers
 import io
 import base64
 import os
+import logging
 from typing import Optional
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
@@ -12,19 +13,25 @@ from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
 from qrcode.image.styles.colormasks import SolidFillColorMask
 from PIL import Image
 from flask import current_app
+from app.services.supabase_storage import SupabaseStorageService
+
+logger = logging.getLogger(__name__)
 
 
 class QRGeneratorService:
     """
     Service for generating branded QR codes for venues.
     Creates QR codes that link to the venue's sommelier chat.
+    Stores QR codes in Supabase Storage (private bucket).
     """
     
     def __init__(self):
         self.frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:5173')
-        self.qr_storage_path = os.path.join(current_app.root_path, '..', 'static', 'qrcodes')
+        self.storage_service = SupabaseStorageService()
+        self.qr_bucket = current_app.config.get('SUPABASE_STORAGE_BUCKET_QRCODES', 'qrcodes')
         
-        # Ensure storage directory exists
+        # Fallback: ensure local storage directory exists (for development/fallback)
+        self.qr_storage_path = os.path.join(current_app.root_path, '..', 'static', 'qrcodes')
         os.makedirs(self.qr_storage_path, exist_ok=True)
     
     def generate_for_venue(
@@ -33,21 +40,24 @@ class QRGeneratorService:
         force_regenerate: bool = False
     ) -> str:
         """
-        Generate a QR code for a venue.
+        Generate a QR code for a venue and upload to Supabase Storage.
+        Maintains identity: qr_{venue.slug}.png
         
         Args:
             venue: Venue model instance
             force_regenerate: Force regeneration even if exists
             
         Returns:
-            URL/path to the QR code image
+            Storage path (not URL, since bucket is private) - format: "qrcodes/qr_{venue.slug}.png"
         """
+        # Maintain identity: qr_{venue.slug}.png
         filename = f"qr_{venue.slug}.png"
-        filepath = os.path.join(self.qr_storage_path, filename)
+        storage_path = filename  # Store at root of bucket
         
-        # Check if already exists
-        if os.path.exists(filepath) and not force_regenerate:
-            return f"/static/qrcodes/{filename}"
+        # Check if already exists (only if not forcing regeneration)
+        if not force_regenerate and self.storage_service.file_exists(self.qr_bucket, storage_path):
+            # Return storage path (not URL, since bucket is private)
+            return f"{self.qr_bucket}/{storage_path}"
         
         # Generate the URL
         venue_url = f"{self.frontend_url}/v/{venue.slug}"
@@ -87,10 +97,31 @@ class QRGeneratorService:
         if venue.logo_url:
             img = self._add_logo(img, venue.logo_url)
         
-        # Save the image
-        img.save(filepath)
+        # Convert image to bytes
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        file_data = buffer.getvalue()
         
-        return f"/static/qrcodes/{filename}"
+        # Upload to Supabase Storage (private bucket)
+        public_url = self.storage_service.upload_file(
+            bucket=self.qr_bucket,
+            file_path=storage_path,
+            file_data=file_data,
+            content_type='image/png',
+            upsert=True
+        )
+        
+        # Since bucket is private, public_url will be None
+        # Return storage path identifier instead
+        if public_url is None:
+            # Upload succeeded but bucket is private, return storage path
+            logger.info(f"QR code uploaded to Supabase Storage: {self.qr_bucket}/{storage_path}")
+            return f"{self.qr_bucket}/{storage_path}"
+        else:
+            # Should not happen for private bucket, but handle anyway
+            logger.warning(f"QR code uploaded but got public URL (bucket may be public): {public_url}")
+            return f"{self.qr_bucket}/{storage_path}"
     
     def generate_base64(self, venue) -> str:
         """
@@ -132,14 +163,15 @@ class QRGeneratorService:
         size: str = 'medium'
     ) -> str:
         """
-        Generate a high-quality printable QR code.
+        Generate a high-quality printable QR code and upload to Supabase Storage.
+        Maintains identity: qr_{venue.slug}_{size}.png
         
         Args:
             venue: Venue model instance
             size: 'small', 'medium', 'large'
             
         Returns:
-            Path to high-res QR code
+            Storage path (not URL, since bucket is private) - format: "qrcodes/qr_{venue.slug}_{size}.png"
         """
         sizes = {
             'small': {'box_size': 15, 'border': 2},   # Good for business cards
@@ -149,8 +181,9 @@ class QRGeneratorService:
         
         params = sizes.get(size, sizes['medium'])
         
+        # Maintain identity: qr_{venue.slug}_{size}.png
         filename = f"qr_{venue.slug}_{size}.png"
-        filepath = os.path.join(self.qr_storage_path, filename)
+        storage_path = filename  # Store at root of bucket
         
         venue_url = f"{self.frontend_url}/v/{venue.slug}"
         
@@ -178,9 +211,23 @@ class QRGeneratorService:
         except Exception:
             img = qr.make_image(fill_color=fill_color, back_color=(255, 255, 255))
         
-        img.save(filepath, dpi=(300, 300))
+        # Convert to bytes
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG', dpi=(300, 300))
+        buffer.seek(0)
+        file_data = buffer.getvalue()
         
-        return f"/static/qrcodes/{filename}"
+        # Upload to Supabase Storage (private bucket)
+        self.storage_service.upload_file(
+            bucket=self.qr_bucket,
+            file_path=storage_path,
+            file_data=file_data,
+            content_type='image/png',
+            upsert=True
+        )
+        
+        logger.info(f"Printable QR code uploaded to Supabase Storage: {self.qr_bucket}/{storage_path}")
+        return f"{self.qr_bucket}/{storage_path}"
     
     def _hex_to_rgb(self, hex_color: str) -> tuple:
         """Convert hex color to RGB tuple."""

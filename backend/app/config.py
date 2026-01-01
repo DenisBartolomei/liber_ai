@@ -5,9 +5,6 @@ import os
 import socket
 from datetime import timedelta
 from dotenv import load_dotenv
-from app.utils.debug_log import dbg
-
-# #region agent log
 # Check if we're in Docker (env_file in docker-compose should already set env vars)
 is_docker = os.path.exists('/.dockerenv') or os.path.exists('/proc/self/cgroup')
 
@@ -33,16 +30,6 @@ if not is_docker or not openai_key_before:
             env_file_found = abs_path
             break
 
-dbg("A", "config.py:9", "before_load_dotenv", {
-    "cwd": os.getcwd(),
-    "is_docker": is_docker,
-    "openai_key_before_load": openai_key_before[:10] + "..." if openai_key_before and len(openai_key_before) > 10 else (openai_key_before if openai_key_before else "NOT_SET"),
-    "env_paths_checked": env_paths,
-    "env_file_found": env_file_found,
-    "all_openai_env_keys": [k for k in os.environ.keys() if 'OPENAI' in k.upper()],
-}, runId="run1")
-# #endregion
-
 # Try loading from found path or default
 # In Docker, env_file should already set variables, but we load .env as fallback
 if env_file_found:
@@ -50,21 +37,6 @@ if env_file_found:
 elif not is_docker:
     # Only try default load_dotenv() if not in Docker (to avoid unnecessary file system access)
     load_dotenv(override=False)
-
-# #region agent log
-openai_key_after_load = os.getenv('OPENAI_API_KEY', '')
-# Check if we're in Docker
-is_docker = os.path.exists('/.dockerenv') or os.path.exists('/proc/self/cgroup')
-dbg("B", "config.py:25", "after_load_dotenv", {
-    "OPENAI_API_KEY_length": len(openai_key_after_load) if openai_key_after_load else 0,
-    "OPENAI_API_KEY_is_empty": not openai_key_after_load or len(openai_key_after_load.strip()) == 0,
-    "OPENAI_API_KEY_preview": openai_key_after_load[:15] + "..." if openai_key_after_load and len(openai_key_after_load) > 15 else (openai_key_after_load if openai_key_after_load else "EMPTY"),
-    "all_openai_env_keys": [k for k in os.environ.keys() if 'OPENAI' in k.upper()],
-    "all_env_keys_count": len(os.environ),
-    "is_docker": is_docker,
-    "env_file_used": env_file_found
-}, runId="run1")
-# #endregion
 
 
 class Config:
@@ -146,19 +118,19 @@ class Config:
     
     # OpenAI
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-    # #region agent log
-    dbg("C", "config.py:46", "Config_class_OPENAI_API_KEY_assignment", {
-        "key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
-        "key_is_empty": not OPENAI_API_KEY or len(OPENAI_API_KEY.strip()) == 0,
-        "key_preview": OPENAI_API_KEY[:15] + "..." if OPENAI_API_KEY and len(OPENAI_API_KEY) > 15 else (OPENAI_API_KEY if OPENAI_API_KEY else "EMPTY"),
-        "key_has_whitespace": OPENAI_API_KEY != OPENAI_API_KEY.strip() if OPENAI_API_KEY else False
-    }, runId="run1")
-    # #endregion
-    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')  # Default, will use fine-tuned model
+    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5-mini-2025-08-07')  # Conversational model for opening messages (use gpt-4o-mini as default, can be overridden with gpt-5 if available)
+    OPENAI_FINETUNED_MODEL = os.getenv('OPENAI_FINETUNED_MODEL', 'ft:gpt-4.1-mini-2025-04-14:personal:liber-ai:CoTKB8PZ')  # Fine-tuned model for wine selection (from .env)
+    OPENAI_COMMUNICATION_MODEL = os.getenv('OPENAI_COMMUNICATION_MODEL', 'gpt-5-mini-2025-08-07')  # Model for natural language communication
     OPENAI_EMBEDDING_MODEL = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
     
     # Frontend
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+    
+    # Supabase Storage
+    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
+    SUPABASE_STORAGE_BUCKET_QRCODES = os.getenv('SUPABASE_STORAGE_BUCKET_QRCODES', 'qrcodes')
+    SUPABASE_STORAGE_BUCKET_WINE_LABELS = os.getenv('SUPABASE_STORAGE_BUCKET_WINE_LABELS', 'wine-labels')
     
     # Session settings
     SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', '60'))

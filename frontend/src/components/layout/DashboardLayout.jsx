@@ -2,9 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  LayoutDashboard, 
   Package, 
-  MessageSquare, 
   BarChart3, 
   Settings,
   LogOut,
@@ -16,10 +14,8 @@ import { useAuth } from '../../context/AuthContext'
 import Logo from '../ui/Logo'
 
 const navItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { path: '/dashboard', icon: BarChart3, label: 'Analytics', end: true },
   { path: '/dashboard/products', icon: Package, label: 'Carta Vini' },
-  { path: '/dashboard/chat', icon: MessageSquare, label: 'Assistente AI' },
-  { path: '/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/dashboard/settings', icon: Settings, label: 'Impostazioni' },
 ]
 

@@ -156,10 +156,12 @@ CREATE TABLE IF NOT EXISTS products (
     
     -- Characteristics
     alcohol_content REAL,
-    body VARCHAR(50),
+    body INTEGER,  -- 1-10 scale
     sweetness VARCHAR(50),
-    tannin_level VARCHAR(50),
-    acidity_level VARCHAR(50),
+    tannin_level INTEGER,  -- 1-10 scale
+    acidity_level INTEGER,  -- 1-10 scale
+    color VARCHAR(255),  -- Wine color description
+    aromas TEXT,  -- Wine aromas description
     
     -- Pricing
     price NUMERIC(10, 2) NOT NULL,

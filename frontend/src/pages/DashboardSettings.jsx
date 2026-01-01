@@ -7,17 +7,18 @@ import {
   Copy, 
   Check, 
   Building2,
-  Bell,
   Save,
   RefreshCw,
   Loader2,
   Plus,
   Trash2,
   Sparkles,
-  ChefHat
+  ChefHat,
+  Wine,
+  X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { venueService, menuService } from '../services/api'
+import { venueService, menuService, productService } from '../services/api'
 import toast from 'react-hot-toast'
 
 const categoryLabels = {
@@ -54,6 +55,11 @@ function DashboardSettings() {
   const [menuText, setMenuText] = useState('')
   const [parsingMenu, setParsingMenu] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
+  
+  // Featured wines state
+  const [products, setProducts] = useState([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [selectedFeaturedWines, setSelectedFeaturedWines] = useState([])
 
   // Customer URL with real slug
   const customerUrl = venue?.slug 
@@ -75,8 +81,16 @@ function DashboardSettings() {
     if (venue?.id) {
       fetchQRCode()
       fetchMenu()
+      fetchProducts()
     }
   }, [venue?.id])
+  
+  // Load featured wines from venue
+  useEffect(() => {
+    if (venue?.featured_wines) {
+      setSelectedFeaturedWines(venue.featured_wines)
+    }
+  }, [venue?.featured_wines])
 
   const fetchQRCode = async () => {
     if (!venue?.id) return
@@ -167,6 +181,38 @@ function DashboardSettings() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const fetchProducts = async () => {
+    if (!venue?.id) return
+    
+    setLoadingProducts(true)
+    try {
+      const response = await productService.getProducts(venue.id)
+      const productsData = Array.isArray(response.data) ? response.data : (response.data?.products || [])
+      setProducts(productsData.filter(p => p.is_available !== false))
+    } catch (error) {
+      console.error('Error fetching products:', error)
+      setProducts([])
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
+  
+  const handleToggleFeaturedWine = (wineId) => {
+    setSelectedFeaturedWines(prev => {
+      if (prev.includes(wineId)) {
+        // Remove wine
+        return prev.filter(id => id !== wineId)
+      } else {
+        // Add wine (max 2)
+        if (prev.length >= 2) {
+          toast.error('Puoi selezionare massimo 2 vini in evidenza')
+          return prev
+        }
+        return [...prev, wineId]
+      }
+    })
+  }
+  
   const handleSave = async () => {
     if (!venue?.id) {
       toast.error('Errore: venue non trovato')
@@ -175,7 +221,11 @@ function DashboardSettings() {
     
     setSaving(true)
     try {
-      const response = await venueService.updateVenue(venue.id, formData)
+      const updateData = {
+        ...formData,
+        featured_wines: selectedFeaturedWines
+      }
+      const response = await venueService.updateVenue(venue.id, updateData)
       updateVenue(response.data.venue)
       toast.success('Impostazioni salvate!')
     } catch (error) {
@@ -555,43 +605,137 @@ Risotto ai funghi - €18`}
         </div>
       </motion.div>
 
-      {/* Notifications */}
+      {/* Featured Wines Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+        transition={{ delay: 0.18 }}
         className="card"
       >
         <div className="flex items-start gap-3 mb-6">
-          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
-            <Bell className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-gold-100 rounded-xl flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-gold-600" />
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="font-display text-lg font-semibold text-burgundy-900">
-              Notifiche
+              Vini in Evidenza
             </h2>
             <p className="text-sm text-burgundy-600">
-              Gestisci le tue preferenze di notifica
+              Seleziona massimo 2 vini dalla tua carta che il sommelier proporrà prioritariamente quando appropriati
+            </p>
+            <p className="text-xs text-burgundy-500 mt-1">
+              {selectedFeaturedWines.length}/2 selezionati
             </p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <label className="flex items-center justify-between p-4 bg-cream-50 rounded-xl cursor-pointer">
-            <div>
-              <p className="font-medium text-burgundy-900">Report settimanale</p>
-              <p className="text-sm text-burgundy-600">Ricevi un riepilogo via email</p>
+        {loadingProducts ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-burgundy-400 animate-spin" />
+            <span className="ml-2 text-burgundy-600">Caricamento vini...</span>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-8 bg-cream-50 rounded-xl">
+            <Wine className="w-12 h-12 text-burgundy-300 mx-auto mb-3" />
+            <p className="text-burgundy-600 mb-2">Nessun vino disponibile</p>
+            <p className="text-sm text-burgundy-500">
+              Aggiungi vini alla carta nella sezione "Prodotti"
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {products.map((wine) => {
+              const isSelected = selectedFeaturedWines.includes(wine.id)
+              const isDisabled = !isSelected && selectedFeaturedWines.length >= 2
+              
+              return (
+                <label
+                  key={wine.id}
+                  className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'border-gold-500 bg-gold-50'
+                      : isDisabled
+                      ? 'border-burgundy-100 bg-cream-50 opacity-50 cursor-not-allowed'
+                      : 'border-burgundy-100 bg-white hover:border-gold-300 hover:bg-gold-50/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                      isSelected
+                        ? 'border-gold-600 bg-gold-600'
+                        : 'border-burgundy-300'
+                    }`}>
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-burgundy-900">
+                          {wine.name}
+                        </h3>
+                        {wine.type && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            wine.type === 'red' ? 'bg-red-100 text-red-700' :
+                            wine.type === 'white' ? 'bg-amber-100 text-amber-700' :
+                            wine.type === 'rose' ? 'bg-pink-100 text-pink-700' :
+                            wine.type === 'sparkling' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {wine.type === 'red' ? 'Rosso' :
+                             wine.type === 'white' ? 'Bianco' :
+                             wine.type === 'rose' ? 'Rosato' :
+                             wine.type === 'sparkling' ? 'Bollicine' : wine.type}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-burgundy-600">
+                        {wine.region && <span>{wine.region}</span>}
+                        {wine.price && (
+                          <span className="font-semibold text-burgundy-900">
+                            €{parseFloat(wine.price).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleToggleFeaturedWine(wine.id)}
+                    disabled={isDisabled}
+                    className="sr-only"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        )}
+
+        {selectedFeaturedWines.length > 0 && (
+          <div className="mt-4 p-3 bg-gold-50 rounded-xl border border-gold-200">
+            <p className="text-sm font-medium text-burgundy-900 mb-2">
+              Vini selezionati:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {selectedFeaturedWines.map(wineId => {
+                const wine = products.find(p => p.id === wineId)
+                return wine ? (
+                  <span
+                    key={wineId}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-gold-500 text-burgundy-900 rounded-full text-sm font-medium"
+                  >
+                    {wine.name}
+                    <button
+                      onClick={() => handleToggleFeaturedWine(wineId)}
+                      className="ml-1 hover:bg-burgundy-900/20 rounded-full p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ) : null
+              })}
             </div>
-            <input type="checkbox" defaultChecked className="w-5 h-5 text-burgundy-900 rounded" />
-          </label>
-          <label className="flex items-center justify-between p-4 bg-cream-50 rounded-xl cursor-pointer">
-            <div>
-              <p className="font-medium text-burgundy-900">Suggerimenti AI</p>
-              <p className="text-sm text-burgundy-600">Notifiche su nuovi suggerimenti per la carta</p>
-            </div>
-            <input type="checkbox" defaultChecked className="w-5 h-5 text-burgundy-900 rounded" />
-          </label>
-        </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Save Button */}

@@ -132,11 +132,18 @@ export function AuthProvider({ children }) {
     console.log('[AuthContext] Venue updated in localStorage and state')
   }
 
+  // Helper function to check if venue has premium plan
+  const isPremiumPlan = (plan) => {
+    const premiumPlans = ['premium', 'enterprise', 'professional']
+    return premiumPlans.includes(plan)
+  }
+
   const value = {
     user,
     venue,
     loading,
     isAuthenticated: !!user,
+    isPremium: venue ? isPremiumPlan(venue.plan) : false,
     login,
     register,
     logout,

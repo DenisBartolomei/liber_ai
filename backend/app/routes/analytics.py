@@ -180,46 +180,6 @@ def get_wine_performance():
     return jsonify(data), 200
 
 
-@analytics_bp.route('/menu-pairing', methods=['GET'])
-@jwt_required()
-def get_menu_pairing():
-    """
-    Get menu-wine pairing analytics (PREMIUM tier).
-    
-    Query params:
-    - period: 'week', 'month', 'quarter', 'year' (default: 'month')
-    - start_date: ISO format date (optional)
-    - end_date: ISO format date (optional)
-    """
-    user, venue, error_response, error_code = _get_user_venue()
-    if error_response:
-        return error_response, error_code
-    
-    # Check Premium access
-    if not _check_premium(user, venue):
-        return jsonify({
-            'message': 'Questa funzione è disponibile solo con piano Premium',
-            'current_plan': venue.plan
-        }), 403
-    
-    period = request.args.get('period', 'month')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    
-    start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00')) if start_date else None
-    end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00')) if end_date else None
-    
-    service = AnalyticsService()
-    data = service.get_menu_pairing_analytics(
-        venue_id=venue.id,
-        period=period,
-        start_date=start_dt,
-        end_date=end_dt
-    )
-    
-    return jsonify(data), 200
-
-
 @analytics_bp.route('/revenue', methods=['GET'])
 @jwt_required()
 def get_revenue():

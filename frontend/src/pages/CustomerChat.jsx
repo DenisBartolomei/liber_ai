@@ -19,8 +19,9 @@ import {
 import ReactMarkdown from 'react-markdown'
 import { venueService, menuService, chatService } from '../services/api'
 import { useChat } from '../hooks/useChat'
-import { LoadingDots } from '../components/ui/LoadingSpinner'
+import { ThinkingMessages } from '../components/ui/LoadingSpinner'
 import WineCard from '../components/chat/WineCard'
+import AllWinesModal from '../components/chat/AllWinesModal'
 import Logo from '../components/ui/Logo'
 
 // Category labels for display
@@ -104,6 +105,12 @@ function CustomerChat() {
   const [feedbackText, setFeedbackText] = useState('')
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
   
+  // Modal state for "Valuta tutti"
+  const [showAllWinesModal, setShowAllWinesModal] = useState(false)
+  const [modalMessageId, setModalMessageId] = useState(null)
+  const [modalWines, setModalWines] = useState([])
+  const [loadingRankings, setLoadingRankings] = useState(false)
+  
   // Calculate bottles when journey is selected or guest count changes
   useEffect(() => {
     if (selectedJourney === 'journey') {
@@ -128,7 +135,8 @@ function CustomerChat() {
     messagesEndRef,
     setInitialContext,
     sessionToken,
-    addAssistantMessage
+    addAssistantMessage,
+    fetchWineRankings
   } = useChat(venueSlug, 'b2c')
 
   useEffect(() => {
@@ -232,9 +240,8 @@ function CustomerChat() {
       dishes: selectedDishes.map(d => ({
         name: d.name,
         category: d.category,
-        main_ingredient: d.main_ingredient,
-        cooking_method: d.cooking_method,
-        description: d.description
+        main_ingredient: d.main_ingredient || null,
+        cooking_method: d.cooking_method || null
       })),
       guest_count: guestCount,
       // All preferences collected deterministically
@@ -266,6 +273,7 @@ function CustomerChat() {
     }
     
     // Set context and send initial message (hidden from display)
+    // The backend will recognize this as initial context message and use opening prompt
     if (setInitialContext) {
       setInitialContext(context)
     }
@@ -1069,6 +1077,9 @@ function CustomerChat() {
                       <Wine className="w-5 h-5 text-burgundy-900" />
                     </div>
                     <div className="space-y-3">
+                      {/* Render message content - always show if exists or if we have wines/journeys */}
+                      {(message.content && message.content.trim()) || (message.wines && message.wines.length > 0) || (message.journeys && message.journeys.length > 0) ? (
+                        message.content && message.content.trim() ? (
                       <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-burgundy-100">
                         {/* Render markdown formatted message */}
                         <div className="text-burgundy-800 leading-relaxed prose prose-burgundy prose-sm max-w-none">
@@ -1096,10 +1107,18 @@ function CustomerChat() {
                           </ReactMarkdown>
                         </div>
                       </div>
+                        ) : (
+                          // Show fallback message if content is empty but we have wines/journeys
+                          <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-burgundy-100">
+                            <p className="text-burgundy-800 leading-relaxed">
+                              Ecco le mie raccomandazioni per voi.
+                            </p>
+                          </div>
+                        )
+                      ) : null}
                       
                       {/* Wine suggestions - SINGLE mode (wines array) */}
-                      {/* Don't show cards during opening message */}
-                      {!message.metadata?.is_opening && message.mode !== 'journey' && message.wines && message.wines.length > 0 && (
+                      {message.mode !== 'journey' && message.wines && message.wines.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -1111,37 +1130,22 @@ function CustomerChat() {
                             I miei consigli per voi
                           </p>
                           
-                          {/* Main recommendation - first wine */}
+                          {/* All recommended wines - show all as selectable cards */}
                           {message.wines.length > 0 && (
                             <div className="space-y-2">
-                              <WineCard 
-                                wine={message.wines[0]} 
-                                isMainRecommendation={true}
-                                selected={selectedWineByMessage[message.id] === message.wines[0].id || 
-                                         (selectedWineByMessage[message.id] === undefined && message.wines[0].id)}
-                                onClick={() => setSelectedWineByMessage(prev => ({
-                                  ...prev,
-                                  [message.id]: message.wines[0].id
-                                }))}
-                              />
-                              
-                              {/* Alternative wines */}
-                              {message.wines.length > 1 && (
-                                <div className="space-y-2 pt-2 border-t border-burgundy-100">
-                                  <p className="text-xs text-burgundy-600 font-medium">Alternative</p>
-                                  {message.wines.slice(1).map((wine, idx) => (
-                                    <WineCard 
-                                      key={wine.id || idx} 
-                                      wine={wine}
-                                      selected={selectedWineByMessage[message.id] === wine.id}
-                                      onClick={() => setSelectedWineByMessage(prev => ({
-                                        ...prev,
-                                        [message.id]: wine.id
-                                      }))}
-                                    />
-                                  ))}
-                                </div>
-                              )}
+                              {message.wines.map((wine, idx) => (
+                                <WineCard 
+                                  key={wine.id || idx}
+                                  wine={wine} 
+                                  isMainRecommendation={wine.best === true || (wine.best === undefined && idx === 0)}
+                                  selected={selectedWineByMessage[message.id] === wine.id || 
+                                           (selectedWineByMessage[message.id] === undefined && (wine.best === true || (wine.best === undefined && idx === 0)) && wine.id)}
+                                  onClick={() => setSelectedWineByMessage(prev => ({
+                                    ...prev,
+                                    [message.id]: wine.id
+                                  }))}
+                                />
+                              ))}
                             </div>
                           )}
                           
@@ -1167,12 +1171,42 @@ function CustomerChat() {
                                 Conferma questa etichetta
                               </button>
                               <button
-                                onClick={() => handleContinueSearch(message.id)}
+                                onClick={async () => {
+                                  setModalMessageId(message.id)
+                                  setLoadingRankings(true)
+                                  setShowAllWinesModal(true)
+                                  
+                                  // Fetch rankings from API using message_id from server
+                                  try {
+                                    const messageId = message.message_id || message.id
+                                    if (messageId) {
+                                      const rankings = await fetchWineRankings(messageId)
+                                      if (rankings && rankings.length > 0) {
+                                        setModalWines(rankings)
+                                      } else {
+                                        // Fallback to all_rankings from message
+                                        const messageRankings = message.all_rankings || message.wines || []
+                                        setModalWines(messageRankings)
+                                      }
+                                    } else {
+                                      // No message_id available, use fallback
+                                      const messageRankings = message.all_rankings || message.wines || []
+                                      setModalWines(messageRankings)
+                                    }
+                                  } catch (err) {
+                                    console.error('Error fetching rankings:', err)
+                                    // Fallback to all_rankings from message
+                                    const messageRankings = message.all_rankings || message.wines || []
+                                    setModalWines(messageRankings)
+                                  } finally {
+                                    setLoadingRankings(false)
+                                  }
+                                }}
                                 disabled={isLoading}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-burgundy-700 text-cream-50 rounded-xl font-semibold hover:bg-burgundy-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
-                                <Search className="w-5 h-5" />
-                                Voglio altre opzioni
+                                <Star className="w-5 h-5" />
+                                Valuta tutti i vini
                               </button>
                             </motion.div>
                           )}
@@ -1180,8 +1214,7 @@ function CustomerChat() {
                       )}
                       
                       {/* Journey suggestions - JOURNEY mode */}
-                      {/* Don't show cards during opening message */}
-                      {!message.metadata?.is_opening && message.mode === 'journey' && message.journeys && message.journeys.length > 0 && (
+                      {message.mode === 'journey' && message.journeys && message.journeys.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -1205,10 +1238,10 @@ function CustomerChat() {
                               <div className="flex items-start justify-between mb-3">
                                 <div>
                                   <h4 className="font-display font-semibold text-burgundy-900 text-lg">
-                                    Percorso {journeyIdx + 1}
+                                    {journey.name || `Percorso ${journeyIdx + 1}`}
                                   </h4>
-                                  {journey.description && (
-                                    <p className="text-sm text-burgundy-600 mt-1">{journey.description}</p>
+                                  {(journey.reason || journey.description) && (
+                                    <p className="text-sm text-burgundy-600 mt-1">{journey.reason || journey.description}</p>
                                   )}
                                 </div>
                                 <button
@@ -1250,18 +1283,10 @@ function CustomerChat() {
                                   }
                                 }}
                                 disabled={isLoading || !selectedJourneyByMessage[message.id]}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <CheckCircle2 className="w-5 h-5" />
                                 Conferma questo percorso
-                              </button>
-                              <button
-                                onClick={() => handleContinueSearch(message.id)}
-                                disabled={isLoading}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-burgundy-700 text-cream-50 rounded-xl font-semibold hover:bg-burgundy-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                              >
-                                <Search className="w-5 h-5" />
-                                Voglio altre opzioni
                               </button>
                             </motion.div>
                           )}
@@ -1289,7 +1314,7 @@ function CustomerChat() {
                 <Wine className="w-4 h-4 text-gold-500" />
               </div>
               <div className="chat-bubble-ai">
-                <LoadingDots />
+                <ThinkingMessages />
               </div>
             </motion.div>
           )}
@@ -1400,6 +1425,36 @@ function CustomerChat() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* All Wines Modal */}
+      {modalMessageId && (
+        <AllWinesModal
+          isOpen={showAllWinesModal}
+          onClose={() => {
+            setShowAllWinesModal(false)
+            setModalMessageId(null)
+            setModalWines([])
+          }}
+          wines={loadingRankings ? [] : (modalWines.length > 0 ? modalWines : (() => {
+            // Fallback: try to get from message if API didn't return data
+            const message = visibleMessages.find(m => m.id === modalMessageId)
+            return message?.all_rankings || message?.wines || []
+          })())}
+          isLoading={loadingRankings}
+          onSelectWine={(wineId) => {
+            if (modalMessageId) {
+              setSelectedWineByMessage(prev => ({
+                ...prev,
+                [modalMessageId]: wineId
+              }))
+              setShowAllWinesModal(false)
+              setModalMessageId(null)
+              setModalWines([])
+            }
+          }}
+          selectedWineId={modalMessageId ? selectedWineByMessage[modalMessageId] : null}
+        />
+      )}
 
       {/* Input Form */}
       <div className="border-t border-burgundy-100 bg-white px-4 py-4">

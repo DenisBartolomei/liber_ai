@@ -9,7 +9,8 @@ import {
   Edit2, 
   Trash2,
   X,
-  Save
+  Save,
+  FileText
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { productService } from '../services/api'
@@ -24,6 +25,7 @@ function DashboardProducts() {
   const [selectedType, setSelectedType] = useState('all')
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [descriptionPopup, setDescriptionPopup] = useState(null)
 
   useEffect(() => {
     if (venue?.id) {
@@ -188,7 +190,7 @@ function DashboardProducts() {
                   <th className="text-left py-4 px-4 font-semibold text-burgundy-900">Vitigno</th>
                   <th className="text-left py-4 px-4 font-semibold text-burgundy-900">Anno</th>
                   <th className="text-left py-4 px-4 font-semibold text-burgundy-900">Prezzo</th>
-                  <th className="text-left py-4 px-4 font-semibold text-burgundy-900">Stato</th>
+                  <th className="text-left py-4 px-4 font-semibold text-burgundy-900">Descrizione</th>
                   <th className="text-right py-4 px-4 font-semibold text-burgundy-900">Azioni</th>
                 </tr>
               </thead>
@@ -214,13 +216,17 @@ function DashboardProducts() {
                     <td className="py-4 px-4 text-burgundy-700">{product.vintage}</td>
                     <td className="py-4 px-4 text-burgundy-900 font-medium">€{product.price}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        product.is_available 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {product.is_available ? 'Disponibile' : 'Non disp.'}
-                      </span>
+                      {product.description ? (
+                        <button
+                          onClick={() => setDescriptionPopup(product)}
+                          className="p-2 text-burgundy-600 hover:text-burgundy-900 hover:bg-burgundy-100 rounded-lg transition-colors"
+                          title="Visualizza descrizione"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <span className="text-burgundy-300 text-sm">-</span>
+                      )}
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
@@ -252,6 +258,44 @@ function DashboardProducts() {
           )}
         </div>
       )}
+
+      {/* Description Popup */}
+      <AnimatePresence>
+        {descriptionPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-burgundy-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setDescriptionPopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-burgundy-100 flex items-center justify-between">
+                <h2 className="font-display text-xl font-bold text-burgundy-900">
+                  Descrizione - {descriptionPopup.name}
+                </h2>
+                <button 
+                  onClick={() => setDescriptionPopup(null)} 
+                  className="p-2 hover:bg-burgundy-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-burgundy-600" />
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-burgundy-700 whitespace-pre-wrap leading-relaxed">
+                  {descriptionPopup.description}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add/Edit Modal */}
       <AnimatePresence>

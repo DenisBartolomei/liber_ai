@@ -98,6 +98,28 @@ export const productService = {
   parseWineImages: (venueId, base64Images) =>
     api.post(`/products/venue/${venueId}/parse-images`, { images: base64Images }, { timeout: 120000 }),
   
+  // Parse CSV wine list
+  parseWineCsv: (venueId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/products/venue/${venueId}/parse-csv`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  
+  // Generate wine descriptions using AI
+  generateWineDescriptions: (venueId, wines) =>
+    api.post(`/products/venue/${venueId}/generate-descriptions`, { wines }),
+  
+  // Upload label image for a product
+  uploadLabelImage: (productId, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/products/${productId}/label-image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  
   // Clear all products
   clearProducts: (venueId) =>
     api.delete(`/products/venue/${venueId}/clear`)
@@ -132,24 +154,31 @@ export const chatService = {
   getSessionHistory: (sessionToken) => 
     api.get(`/chat/sessions/${sessionToken}/history`),
   
-  // B2B Restaurant owner chat
-  sendB2BMessage: (message) => 
-    api.post('/b2b/chat', { message }),
-  
-  getB2BHistory: () => 
-    api.get('/b2b/chat/history')
+  getMessageRankings: (messageId) =>
+    api.get(`/chat/messages/${messageId}/rankings`)
 }
 
 // Analytics Service
 export const analyticsService = {
-  getDashboardStats: () => 
-    api.get('/b2b/analytics/dashboard'),
+  // FREE tier endpoints
+  getOverview: (params = {}) => 
+    api.get('/analytics/overview', { params }),
   
-  getConversationStats: (params = {}) => 
-    api.get('/b2b/analytics/conversations', { params }),
+  getOperational: (params = {}) => 
+    api.get('/analytics/operational', { params }),
   
-  getPopularWines: (params = {}) => 
-    api.get('/b2b/analytics/popular-wines', { params })
+  // PREMIUM tier endpoints
+  getCustomerIntelligence: (params = {}) => 
+    api.get('/analytics/customer-intelligence', { params }),
+  
+  getWinePerformance: (params = {}) => 
+    api.get('/analytics/wine-performance', { params }),
+  
+  getRevenue: (params = {}) => 
+    api.get('/analytics/revenue', { params }),
+  
+  getBenchmark: (params = {}) => 
+    api.get('/analytics/benchmark', { params })
 }
 
 // Menu Service (Food menu for wine pairing)

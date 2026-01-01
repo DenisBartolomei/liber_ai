@@ -7,9 +7,7 @@ import CustomerChat from './pages/CustomerChat'
 import VenueMenu from './pages/VenueMenu'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
 import DashboardProducts from './pages/DashboardProducts'
-import DashboardChat from './pages/DashboardChat'
 import DashboardSettings from './pages/DashboardSettings'
 import DashboardAnalytics from './pages/DashboardAnalytics'
 import Onboarding from './pages/Onboarding'
@@ -44,9 +42,8 @@ function App() {
             <DashboardLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<Dashboard />} />
+          <Route index element={<DashboardAnalytics />} />
           <Route path="products" element={<DashboardProducts />} />
-          <Route path="chat" element={<DashboardChat />} />
           <Route path="analytics" element={<DashboardAnalytics />} />
           <Route path="settings" element={<DashboardSettings />} />
         </Route>

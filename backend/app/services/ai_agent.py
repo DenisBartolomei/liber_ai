@@ -7,7 +7,10 @@ import logging
 from typing import Dict, List, Optional, Any
 from openai import OpenAI, APIError, AuthenticationError, RateLimitError
 from flask import current_app
+from app import db
 from app.services.vector_search import VectorSearchService
+from app.services.fine_tuned_selector import FineTunedWineSelector
+from app.services.communication_model import CommunicationModelService
 from app.prompts.b2b_system import get_b2b_system_prompt
 from app.prompts.b2c_system import get_b2c_system_prompt, get_b2c_opening_prompt, calculate_bottles_needed
 
@@ -21,135 +24,22 @@ class AIAgentService:
     """
     
     def __init__(self):
-        # #region agent log
-        import json
-        import os
-        log_path = r"c:\Users\utente\OneDrive - UNIVERSITA' CARLO CATTANEO - LIUC\Desktop\Bacco Sommelier AI\.cursor\debug.log"
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "A",
-                    "location": "ai_agent.py:23",
-                    "message": "AIAgentService_init_entry",
-                    "data": {},
-                    "timestamp": int(__import__('time').time() * 1000)
-                }, ensure_ascii=False) + "\n")
-        except: pass
-        # #endregion
-        
         api_key = current_app.config.get('OPENAI_API_KEY', '')
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "E",
-                    "location": "ai_agent.py:30",
-                    "message": "api_key_retrieved",
-                    "data": {
-                        "api_key_length": len(api_key) if api_key else 0,
-                        "api_key_is_empty": not api_key or len(api_key.strip()) == 0,
-                        "api_key_preview": api_key[:10] + "..." if api_key and len(api_key) > 10 else (api_key if api_key else "EMPTY")
-                    },
-                    "timestamp": int(__import__('time').time() * 1000)
-                }, ensure_ascii=False) + "\n")
-        except: pass
-        # #endregion
         
         if not api_key or not api_key.strip():
             logger.error("OPENAI_API_KEY is not configured!")
             raise ValueError("OPENAI_API_KEY non configurata. Contatta l'amministratore del sistema.")
         
-        # #region agent log
-        try:
-            import openai
-            import httpx
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "B",
-                    "location": "ai_agent.py:45",
-                    "message": "before_openai_init",
-                    "data": {
-                        "openai_version": getattr(openai, '__version__', 'unknown'),
-                        "httpx_version": getattr(httpx, '__version__', 'unknown'),
-                        "api_key_provided": True
-                    },
-                    "timestamp": int(__import__('time').time() * 1000)
-                }, ensure_ascii=False) + "\n")
-        except Exception as e:
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "B",
-                        "location": "ai_agent.py:45",
-                        "message": "version_check_failed",
-                        "data": {"error": str(e)},
-                        "timestamp": int(__import__('time').time() * 1000)
-                    }, ensure_ascii=False) + "\n")
-            except: pass
-        # #endregion
-        
         try:
             # Try initializing without explicit api_key parameter (uses env var)
-            self.client = OpenAI(api_key=api_key)
+            self.client = OpenAI(api_key=api_key, timeout=30.0)  # 30 second timeout
         except TypeError as e:
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "C",
-                        "location": "ai_agent.py:60",
-                        "message": "openai_init_failed_typeerror",
-                        "data": {"error": str(e), "error_type": type(e).__name__},
-                        "timestamp": int(__import__('time').time() * 1000)
-                    }, ensure_ascii=False) + "\n")
-            except: pass
-            # #endregion
             # Try alternative initialization
             import os
             os.environ['OPENAI_API_KEY'] = api_key
-            self.client = OpenAI()
+            self.client = OpenAI(timeout=30.0)  # 30 second timeout
         except Exception as e:
-            # #region agent log
-            try:
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "D",
-                        "location": "ai_agent.py:70",
-                        "message": "openai_init_failed_general",
-                        "data": {"error": str(e), "error_type": type(e).__name__},
-                        "timestamp": int(__import__('time').time() * 1000)
-                    }, ensure_ascii=False) + "\n")
-            except: pass
-            # #endregion
             raise
-        
-        # #region agent log
-        try:
-            with open(log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "A",
-                    "location": "ai_agent.py:80",
-                    "message": "openai_client_initialized",
-                    "data": {"client_created": self.client is not None},
-                    "timestamp": int(__import__('time').time() * 1000)
-                }, ensure_ascii=False) + "\n")
-        except: pass
-        # #endregion
         
         self.model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
         self.vector_service = VectorSearchService()
@@ -183,68 +73,53 @@ class AIAgentService:
         Returns:
             Dict with 'message', 'wines', 'suggestions', 'metadata'
         """
+        
         # Get conversation history
         history = session.get_conversation_history(limit=self.max_history)
         
-        # Determine if this is first message (no history or only system messages)
-        # Check if current user message looks like initial automatic message (contains context summary)
-        is_first_message = len([m for m in history if m.get('role') in ['user', 'assistant']]) == 0
-        is_empty_message = not user_message or not user_message.strip()
-        
-        # Detect if this is the initial automatic message from frontend (contains context summary patterns)
-        is_initial_context_message = False
-        if user_message:
-            initial_patterns = [
-                'abbiamo ordinato:', 'preferiamo', 'vogliamo', 'siamo in',
-                'al tavolo', 'budget:', 'persona', 'persone', 'bottigli'
-            ]
-            msg_lower = user_message.lower()
-            # If message contains multiple context indicators, it's likely the initial auto-message
-            pattern_count = sum(1 for pattern in initial_patterns if pattern in msg_lower)
-            is_initial_context_message = pattern_count >= 3  # At least 3 patterns = initial message
-        
-        # Use opening prompt if: first message AND (empty message OR initial context message)
-        if is_first_message and (is_empty_message or is_initial_context_message):
-            is_first_message = True
-        elif is_first_message and not is_empty_message and not is_initial_context_message:
-            # First message with actual customer content - they might be skipping opening
-            is_first_message = False
+        # Simple logic: if message_count <= 1, use opening prompt, otherwise use recommendation prompt
+        message_count = session.message_count or 0
+        use_opening_prompt = message_count <= 1
         
         # Use provided context or session context
-        active_context = context or getattr(session, 'context', None) or {}
+        # Priority: provided context > session context > empty dict
+        active_context = context
+        if not active_context:
+            active_context = getattr(session, 'context', None) or {}
         
         # Extract preferences from context (collected via UI, not LLM)
+        # Ensure we have a preferences structure
         preferences = active_context.get('preferences', {})
+        if not preferences and active_context:
+            # Try to reconstruct preferences from session if not in context
+            # This handles cases where context was saved but preferences structure is missing
+            preferences = {}
+        
+        # Build gathered_info with all preferences, including bottles_count
         gathered_info = {
             'wine_type': preferences.get('wine_type', 'any'),
             'journey_preference': preferences.get('journey_preference', 'single'),
-            'budget': preferences.get('budget', 'spinto')
+            'budget': preferences.get('budget'),
+            'bottles_count': preferences.get('bottles_count')
         }
         
-        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, is_first_message={is_first_message}, history_length={len(history)}")
+        # If bottles_count is not in preferences but journey_preference is 'journey',
+        # try to get it from session.num_bottiglie_target
+        if gathered_info['journey_preference'] == 'journey' and not gathered_info['bottles_count']:
+            if hasattr(session, 'num_bottiglie_target') and session.num_bottiglie_target:
+                gathered_info['bottles_count'] = session.num_bottiglie_target
         
-        # Check if customer has confirmed (for switching from opening to recommendation)
-        # Look for confirmation signals in the current message or history
-        customer_confirmed = False
+        # Ensure guest_count is in active_context
+        if 'guest_count' not in active_context:
+            # Try to get from session context if available
+            session_context = getattr(session, 'context', None)
+            if session_context and 'guest_count' in session_context:
+                active_context['guest_count'] = session_context['guest_count']
+            else:
+                active_context['guest_count'] = 2  # Default
         
-        # Check current user message for confirmation
-        user_msg_lower = user_message.lower().strip()
-        confirmation_signals = [
-            'sì', 'si', 'ok', 'va bene', 'perfetto', 'confermo', 'procedi', 
-            'va bene così', 'corretto', 'esatto', 'conferma', 'perfetto così',
-            'procediamo', 'vai', 'andiamo', 'giusto', 'sì procedi'
-        ]
-        customer_confirmed = any(signal in user_msg_lower for signal in confirmation_signals)
-        
-        # Also check history if not confirmed in current message
-        if not customer_confirmed and not is_first_message:
-            user_messages = [m for m in history if m.get('role') == 'user']
-            if user_messages:
-                last_user_msg = user_messages[-1].get('content', '').lower()
-                customer_confirmed = any(signal in last_user_msg for signal in confirmation_signals)
-        
-        # Use opening prompt ONLY for first message AND if customer hasn't confirmed yet
-        use_opening_prompt = is_first_message and not customer_confirmed
+        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, message_count={message_count}")
+        logger.info(f"Using model for {'opening' if use_opening_prompt else 'recommendation'}: {self.model if use_opening_prompt else 'fine-tuned'}")
         
         if use_opening_prompt:
             # Use simple opening prompt (no wine list needed, just welcome and recap)
@@ -266,19 +141,50 @@ class AIAgentService:
             # Add current user message
             messages.append({"role": "user", "content": user_message})
             
-            # Call GPT
+            # Call GPT - opening message, keep it brief
             try:
+                logger.info(f"Calling OpenAI API with model: {self.model}, messages count: {len(messages)}")
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    temperature=0.7,
-                    max_tokens=800
+                    max_completion_tokens=600  # Increased for more complete opening messages
                 )
                 
-                ai_response = response.choices[0].message.content
+                logger.info(f"OpenAI API response received: has_choices={bool(response.choices)}, choices_count={len(response.choices) if response.choices else 0}")
                 
-                return {
-                    'message': ai_response,
+                # Safely extract response content
+                if not response.choices or len(response.choices) == 0:
+                    logger.error("OpenAI API returned no choices in response")
+                    raise ValueError("La risposta dell'API non contiene scelte valide")
+                
+                choice = response.choices[0]
+                if not choice.message:
+                    logger.error("OpenAI API response choice has no message")
+                    raise ValueError("La risposta dell'API non contiene un messaggio valido")
+                
+                ai_response = choice.message.content
+                logger.info(f"Extracted AI response: length={len(ai_response) if ai_response else 0}, preview={ai_response[:100] if ai_response else 'None'}")
+                
+                # Ensure response is not empty
+                if not ai_response or not ai_response.strip():
+                    logger.warning("Opening message returned empty response, generating fallback")
+                    # Generate a simple opening message as fallback
+                    dish_list = [d.get('name', 'Piatto') for d in active_context.get('dishes', [])]
+                    guest_count = active_context.get('guest_count', 2)
+                    journey_text = "un percorso di vini" if gathered_info.get('journey_preference') == 'journey' else "una singola etichetta"
+                    wine_type_text = "si affida alla mia esperienza" if gathered_info.get('wine_type') == 'any' else gathered_info.get('wine_type', '')
+                    
+                    ai_response = f"Benvenuti! Ho visto che avete ordinato {', '.join(dish_list) if dish_list else 'alcuni piatti'} per {guest_count} {('persona' if guest_count == 1 else 'persone')}. Preferite {journey_text}? Avete esigenze particolari o preferenze da comunicarmi?"
+                
+                # Final validation before returning
+                if not ai_response or not isinstance(ai_response, str) or not ai_response.strip():
+                    logger.error(f"AI response is invalid: type={type(ai_response)}, value={repr(ai_response)}")
+                    raise ValueError("La risposta dell'AI è vuota o non valida")
+                
+                logger.info(f"Returning opening message: length={len(ai_response)}, preview={ai_response[:150]}")
+                
+                result = {
+                    'message': ai_response.strip(),
                     'wines': [],
                     'wine_ids': [],
                     'journeys': [],
@@ -293,63 +199,310 @@ class AIAgentService:
                     }
                 }
                 
+                logger.info(f"Opening message result: message_length={len(result['message'])}, is_opening={result['metadata']['is_opening']}")
+                return result
+                
             except Exception as e:
-                logger.error(f"Error in opening message: {e}")
-                raise
+                logger.error(f"Error in opening message: {e}", exc_info=True)
+                # Generate fallback opening message instead of raising
+                dish_list = [d.get('name', 'Piatto') for d in active_context.get('dishes', [])]
+                guest_count = active_context.get('guest_count', 2)
+                journey_text = "un percorso di vini" if gathered_info.get('journey_preference') == 'journey' else "una singola etichetta"
+                
+                fallback_message = f"Benvenuti! Ho visto che avete ordinato {', '.join(dish_list) if dish_list else 'alcuni piatti'} per {guest_count} {('persona' if guest_count == 1 else 'persone')}. Preferite {journey_text}? Avete esigenze particolari o preferenze da comunicarmi?"
+                
+                return {
+                    'message': fallback_message,
+                    'wines': [],
+                    'wine_ids': [],
+                    'journeys': [],
+                    'suggestions': [],
+                    'mode': 'single',
+                    'metadata': {
+                        'model': self.model,
+                        'tokens_used': 0,
+                        'gathered_info': gathered_info,
+                        'is_recommending': False,
+                        'is_opening': True,
+                        'error': str(e)
+                    }
+                }
         
-        # Use the recommendation prompt (customer has confirmed or not first message)
+        # NEW ARCHITECTURE: Two-phase approach
+        # Phase 1: Fine-tuned model selects wines and returns structured JSON
+        # Phase 2: Communication model generates natural language message
+        
+        # Get preferences for filtering
+        wine_type_pref = gathered_info.get('wine_type', 'any')
+        budget_pref = gathered_info.get('budget')
+        
+        # Get filtered wines from the venue's catalog based on preferences
+        from app.models import Product
+        
+        # Build query with filters
+        query = Product.query.filter_by(
+            venue_id=venue.id,
+            is_available=True
+        )
+        
+        # Filter by wine type
+        if wine_type_pref and wine_type_pref != 'any':
+            query = query.filter_by(type=wine_type_pref)
+        
+        # Filter by budget (budget - 20% to budget + 15%)
+        budget_max = None
+        if budget_pref and budget_pref != 'nolimit':
+            if isinstance(budget_pref, (int, float)):
+                budget_max = float(budget_pref)
+            elif budget_pref == 'base' or budget_pref == 'low':
+                budget_max = 20.0
+            elif budget_pref == 'spinto' or budget_pref == 'medium':
+                budget_max = 40.0
+            
+            if budget_max:
+                min_price = budget_max * 0.80  # budget - 20%
+                max_price = budget_max * 1.15  # budget + 15%
+                query = query.filter(Product.price >= min_price, Product.price <= max_price)
+        
+        # Use load_only to select only core columns that exist in all databases
+        # This avoids errors if optional columns (color, aromas, etc.) don't exist
+        all_products = query.options(
+            db.load_only(
+                Product.id,
+                Product.venue_id,
+                Product.name,
+                Product.type,
+                Product.price,
+                Product.cost_price,
+                Product.margin,
+                Product.is_available,
+                Product.image_url,
+                Product.created_at,
+                Product.updated_at
+            )
+        ).order_by(Product.type, Product.name).all()
+        
+        # Convert to dict format
+        all_wines = [p.to_dict() for p in all_products]
+        if budget_max:
+            min_price = budget_max * 0.80
+            max_price = budget_max * 1.15
+            logger.info(f"Filtered wines: type={wine_type_pref}, budget_range=€{min_price:.2f}-€{max_price:.2f} (budget €{budget_max:.2f} ±20%/+15%), result={len(all_wines)} wines from venue {venue.id}")
+        else:
+            logger.info(f"Filtered wines: type={wine_type_pref}, budget_max=none, result={len(all_wines)} wines from venue {venue.id}")
+        
+        if not all_wines:
+            logger.warning("No wines available in catalog")
+            return {
+                'message': 'Mi dispiace, al momento non ci sono vini disponibili nella carta.',
+                'wines': [],
+                'wine_ids': [],
+                'journeys': [],
+                'suggestions': [],
+                'mode': 'single',
+                'metadata': {
+                    'model': self.model,
+                    'tokens_used': 0,
+                    'gathered_info': gathered_info,
+                    'is_recommending': False
+                }
+            }
+        
+        try:
+            # PHASE 1: Fine-tuned model selects wines
+            # Get featured wines from venue preferences
+            featured_wines = venue.get_featured_wines() if hasattr(venue, 'get_featured_wines') else []
+            
+            fine_tuned_selector = FineTunedWineSelector()
+            wine_selection = fine_tuned_selector.select_wines(
+                venue_name=venue.name,
+                venue_id=venue.id,
+                context=active_context,
+                gathered_info=gathered_info,
+                all_wines=all_wines,
+                history=history,
+                user_message=user_message,
+                featured_wines=featured_wines
+            )
+            
+            # Check if we got valid selections
+            has_wines = wine_selection.get('wines') and len(wine_selection['wines']) > 0
+            has_journeys = wine_selection.get('journeys') and len(wine_selection['journeys']) > 0
+            
+            if not has_wines and not has_journeys:
+                logger.warning("Fine-tuned model returned no wines/journeys, falling back to legacy method")
+                # Fallback to legacy method if fine-tuned returns nothing
+                return self._fallback_to_legacy_method(
+                    venue, active_context, gathered_info, history, user_message, all_wines
+                )
+            
+            # PHASE 2: Communication model generates message
+            journey_pref = gathered_info.get('journey_preference', 'single')
+            
+            # Create a limited wine_selection with only first 3 wines for CommunicationModel
+            wine_selection_for_communication = wine_selection.copy()
+            if journey_pref == 'single' and has_wines:
+                # Limit to first 3 wines for communication model
+                wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
+                logger.info(f"Passing first 3 wines to CommunicationModel (out of {len(wine_selection.get('wines', []))} total)")
+            
+            communication_service = CommunicationModelService()
+            try:
+                ai_message = communication_service.generate_message(
+                    venue_name=venue.name,
+                    sommelier_style=venue.sommelier_style or 'professional',
+                    wine_selection=wine_selection_for_communication,
+                    context=active_context,
+                    gathered_info=gathered_info,
+                    history=history,
+                    user_message=user_message
+                )
+                
+                # Ensure message is not empty
+                if not ai_message or not ai_message.strip():
+                    logger.warning("Communication model returned empty message, using fallback")
+                    ai_message = self._generate_fallback_message(wine_selection, journey_pref)
+                else:
+                    logger.info(f"Communication model generated message: {len(ai_message)} chars")
+            except Exception as e:
+                logger.warning(f"Communication model failed, using fallback: {e}")
+                ai_message = self._generate_fallback_message(wine_selection, journey_pref)
+            
+            # Prepare response based on mode
+            
+            if journey_pref == 'journey' and has_journeys:
+                # Journey mode
+                all_wine_ids = []
+                for journey in wine_selection['journeys']:
+                    all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
+                
+                logger.info(f"Returning {len(wine_selection['journeys'])} journeys with {len(all_wine_ids)} unique wines")
+                return {
+                    'message': ai_message,
+                    'journeys': wine_selection['journeys'],
+                    'wine_ids': list(set(all_wine_ids)),
+                    'wines': [],  # Empty for journey mode
+                    'suggestions': [],
+                    'mode': 'journey',
+                    'metadata': {
+                        'model': self.model,
+                        'tokens_used': 0,  # TODO: Track tokens from both models
+                        'gathered_info': gathered_info,
+                        'is_recommending': True
+                    }
+                }
+            else:
+                # Single mode
+                all_ranked_wines = wine_selection.get('wines', [])
+                # First 3 wines for initial display
+                wines_for_display = all_ranked_wines[:3]
+                wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
+                
+                logger.info(f"Returning {len(wines_for_display)} wines for display, {len(all_ranked_wines)} total ranked wines")
+                
+                return {
+                    'message': ai_message,
+                    'wines': wines_for_display,  # Primi 3 vini per display iniziale
+                    'all_rankings': all_ranked_wines,  # TUTTI i vini rankati per il modal "Valuta tutti i vini"
+                    'wine_ids': wine_ids,
+                    'journeys': [],
+                    'suggestions': [],
+                    'mode': 'single',
+                    'metadata': {
+                        'model': self.model,
+                        'tokens_used': 0,  # TODO: Track tokens from both models
+                        'gathered_info': gathered_info,
+                        'is_recommending': True
+                    }
+                }
+            
+        except ValueError as e:
+            # Configuration or expected errors - try fallback
+            logger.warning(f"Error in two-phase architecture, falling back: {e}")
+            return self._fallback_to_legacy_method(
+                venue, active_context, gathered_info, history, user_message, all_wines
+            )
+        
+        except Exception as e:
+            logger.error(f"Unexpected error in process_b2c_message: {e}")
+            # Try fallback before giving up
+            try:
+                return self._fallback_to_legacy_method(
+                    venue, active_context, gathered_info, history, user_message, all_wines
+                )
+            except Exception as fallback_error:
+                logger.error(f"Fallback also failed: {fallback_error}")
+                raise ValueError(f"Si è verificato un errore imprevisto. Riprova.")
+    
+    def _generate_fallback_message(self, wine_selection: Dict, journey_pref: str) -> str:
+        """
+        Generate a simple fallback message from wine selection JSON.
+        Used when communication model fails or returns empty.
+        """
+        if journey_pref == 'journey' and wine_selection.get('journeys'):
+            journeys = wine_selection['journeys']
+            messages = []
+            for journey in journeys:
+                journey_name = journey.get('name', 'Percorso di Degustazione')
+                wines = journey.get('wines', [])
+                wine_names = [f"{w.get('name', 'Vino')} - €{w.get('price', 'N/D')}" for w in wines]
+                messages.append(f"**{journey_name}**:\n" + "\n".join([f"- {name}" for name in wine_names]))
+            return "\n\n".join(messages)
+        elif wine_selection.get('wines'):
+            wines = wine_selection['wines']
+            best_wine = next((w for w in wines if w.get('best')), wines[0] if wines else None)
+            other_wines = [w for w in wines if not w.get('best')]
+            
+            message_parts = []
+            if best_wine:
+                reason = best_wine.get('reason', '')
+                message_parts.append(f"**Il mio consiglio** - {best_wine.get('name')} - €{best_wine.get('price')}")
+                if reason:
+                    message_parts.append(reason)
+            
+            for wine in other_wines[:2]:  # Max 2 alternatives
+                reason = wine.get('reason', '')
+                message_parts.append(f"**Un'alternativa interessante** - {wine.get('name')} - €{wine.get('price')}")
+                if reason:
+                    message_parts.append(reason)
+            
+            return "\n\n".join(message_parts)
+        else:
+            return "Ecco le mie raccomandazioni per voi."
+    
+    def _fallback_to_legacy_method(
+        self,
+        venue,
+        active_context: Dict,
+        gathered_info: Dict,
+        history: List[Dict],
+        user_message: str,
+        all_wines: List[Dict]
+    ) -> Dict[str, Any]:
+        """
+        Fallback to legacy method if fine-tuned architecture fails.
+        Uses the old extraction-based approach.
+        """
+        logger.info("Using legacy fallback method for wine recommendations")
+        
+        # Use the recommendation prompt (legacy)
         system_prompt = get_b2c_system_prompt(
             venue_name=venue.name,
             cuisine_type=venue.cuisine_type,
             sommelier_style=venue.sommelier_style or 'professional',
             context=active_context,
             gathered_info=gathered_info,
-            is_first_message=False  # Always False here since we're past opening
+            is_first_message=False
         )
         
-        # Get ALL available wines from the venue's catalog (NO vector search)
-        # The entire wine list must ALWAYS be passed to the AI
-        from app.models import Product
-        all_products = Product.query.filter_by(
-            venue_id=venue.id,
-            is_available=True
-        ).order_by(Product.type, Product.name).all()
-        
-        # Convert to dict format
-        all_wines = [p.to_dict() for p in all_products]
-        logger.info(f"Loaded {len(all_wines)} wines from venue {venue.id} catalog (entire catalog)")
-        
-        # Filter out dessert wines if dishes are savory (but still pass all wines to AI context)
-        dishes = active_context.get('dishes', [])
-        dish_categories = [d.get('category', '').lower() for d in dishes]
-        dish_names_text = ' '.join([d.get('name', '').lower() for d in dishes])
-        has_savory_dishes = any(cat in ['antipasto', 'primo', 'secondo', 'contorno'] for cat in dish_categories) or \
-                           any(word in dish_names_text for word in ['pasta', 'risotto', 'ragù', 'carne', 'pesce', 'antipasto', 'primo', 'secondo'])
-        has_dessert_only = all(cat in ['dolce', 'dessert'] for cat in dish_categories if cat) or \
-                          all(word in dish_names_text for word in ['dolce', 'dessert', 'torta', 'tiramisu'])
-        
-        # wines_to_use: all wines for AI context (entire catalog)
-        # wines_for_suggestions: filtered wines for actual recommendations (excluding dessert wines if needed)
-        wines_to_use = all_wines
-        wines_for_suggestions = all_wines
-        
-        if has_savory_dishes and not has_dessert_only:
-            # Remove dessert wines from suggestions (but AI still sees full catalog in context)
-            wines_for_suggestions = [w for w in all_wines if w.get('type', '').lower() not in ['dessert', 'passito', 'dolce', 'liquoroso']]
-            # Also check description/name for dessert indicators
-            wines_for_suggestions = [w for w in wines_for_suggestions if not any(word in (w.get('name', '') + ' ' + (w.get('description', '') or '')).lower() 
-                                                                                for word in ['passito', 'dolce', 'dessert', 'liquoroso', 'moscato'])]
-            if len(wines_for_suggestions) < len(all_wines):
-                logger.info(f"Filtered out {len(all_wines) - len(wines_for_suggestions)} dessert wines for suggestions, but full catalog ({len(all_wines)} wines) passed to AI")
-        
-        # Build context about available wines for the AI
+        # Build context about available wines
         wines_context = f"""## Carta dei Vini Disponibili
 
-⚠️ REGOLA CRITICA: Puoi proporre SOLO i vini elencati qui sotto. NON inventare MAI vini, nomi, cantine, annate o caratteristiche che non sono in questa lista. Se non c'è il vino ideale, proponi il più adatto tra quelli disponibili.
+⚠️ REGOLA CRITICA: Puoi proporre SOLO i vini elencati qui sotto. NON inventare MAI vini, nomi, cantine, annate o caratteristiche che non sono in questa lista.
 
-{self._build_wines_context(wines_to_use)}
+{self._build_wines_context(all_wines)}
 
-⚠️ RICORDA: DEVI SEMPRE proporre qualcosa se ci sono vini nella lista sopra. Anche se non sono perfetti, proponi i migliori disponibili."""
+⚠️ RICORDA: DEVI SEMPRE proporre qualcosa se ci sono vini nella lista sopra."""
         
         # Prepare messages for GPT
         messages = [{"role": "system", "content": system_prompt}]
@@ -362,127 +515,68 @@ class AIAgentService:
         # Add current user message
         messages.append({"role": "user", "content": user_message})
         
-        # Call GPT
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1200
-            )
-            
-            ai_response = response.choices[0].message.content
-            
-            # Determine if this is a journey or single wine recommendation
-            journey_pref = gathered_info.get('journey_preference', 'single')
-            bottles_count = preferences.get('bottles_count')
-            
-            # Check if the AI is making wine recommendations
-            wines_to_return = []
-            wine_ids = []
-            is_recommending = self._is_making_recommendations(ai_response)
-            
-            # CRITICAL: For single wine mode, extract wines ONLY from what AI actually mentions in the text
-            # NO fallback - if extraction fails, return empty array (cards won't show)
-            if journey_pref == 'single' and wines_for_suggestions:
-                # Extract wines from AI response (search in full catalog)
-                wines_to_return = self._extract_recommended_wines(ai_response, wines_to_use)
-                
-                # NO FALLBACK: If extraction failed, return empty array
-                # Cards will only show if wines are actually mentioned and extracted from the text
-                if not wines_to_return:
-                    logger.warning(f"Wine extraction failed for single mode - no wines found in AI response. Not using fallback - cards will not be shown.")
-            
-            elif is_recommending:
-                # For journey mode or when explicitly recommending, extract wines from full catalog
-                wines_to_return = self._extract_recommended_wines(ai_response, wines_to_use)
-                
-                # NO FALLBACK: If extraction failed, return empty array
-                # This ensures cards only show wines actually mentioned in the text
-                if not wines_to_return:
-                    logger.warning(f"Wine extraction failed - no wines found in AI response. Not using fallback - cards will not be shown.")
-            
-            wine_ids = [w.get('id') for w in wines_to_return if w.get('id')]
-            
-            # Handle journey vs single mode
-            if journey_pref == 'journey':
-                # For journeys, use filtered suggestions (excludes dessert wines if needed) to ensure variety
-                # But AI has seen full catalog in context, so it knows all available wines
-                wines_for_journey = wines_for_suggestions if wines_for_suggestions else wines_to_return
-                
-                if wines_for_journey:
-                    logger.info(f"Creating journeys from {len(wines_for_journey)} available wines (from {len(wines_to_use)} total in catalog)")
-                    # Create journeys from wines - use filtered wines to ensure variety
-                    journeys = self._create_wine_journeys(wines_for_journey, bottles_count or calculate_bottles_needed(active_context.get('guest_count', 2)))
-                    
-                    if journeys:  # Only return journey mode if we have valid journeys
-                        all_wine_ids = []
-                        for journey in journeys:
-                            all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
-                        
-                        logger.info(f"Created {len(journeys)} journeys with {len(all_wine_ids)} unique wines")
-                        return {
-                            'message': ai_response,
-                            'journeys': journeys,
-                            'wine_ids': list(set(all_wine_ids)),  # Remove duplicates
-                            'suggestions': [],
-                            'mode': 'journey',
-                            'metadata': {
-                                'model': self.model,
-                                'tokens_used': response.usage.total_tokens if response.usage else 0,
-                                'gathered_info': gathered_info,
-                                'is_recommending': True
-                            }
-                        }
-            
-            # Single wine mode - ALWAYS return wines if we have any
-            # Even if is_recommending is False, if we have wines we should show them
+        # Call GPT - fallback method, allow more descriptive responses
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=800  # Increased for more complete responses
+        )
+        
+        ai_response = response.choices[0].message.content
+        
+        # Extract wines (legacy method)
+        journey_pref = gathered_info.get('journey_preference', 'single')
+        preferences = active_context.get('preferences', {})
+        bottles_count = preferences.get('bottles_count')
+        
+        wines_to_return = []
+        wine_ids = []
+        
+        if journey_pref == 'single':
+            wines_to_return = self._extract_recommended_wines(ai_response, all_wines)
+        else:
+            wines_to_return = self._extract_recommended_wines(ai_response, all_wines)
             if wines_to_return:
-                return {
-                    'message': ai_response,
-                    'wines': wines_to_return,
-                    'wine_ids': wine_ids,
-                    'suggestions': [],
-                    'mode': 'single',
-                    'metadata': {
-                        'model': self.model,
-                        'tokens_used': response.usage.total_tokens if response.usage else 0,
-                        'gathered_info': gathered_info,
-                        'is_recommending': True  # Set to True if we have wines to show
+                journeys = self._create_wine_journeys(
+                    wines_to_return,
+                    bottles_count or calculate_bottles_needed(active_context.get('guest_count', 2))
+                )
+                if journeys:
+                    all_wine_ids = []
+                    for journey in journeys:
+                        all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
+                    
+                    return {
+                        'message': ai_response,
+                        'journeys': journeys,
+                        'wine_ids': list(set(all_wine_ids)),
+                        'wines': [],
+                        'suggestions': [],
+                        'mode': 'journey',
+                        'metadata': {
+                            'model': self.model,
+                            'tokens_used': response.usage.total_tokens if response.usage else 0,
+                            'gathered_info': gathered_info,
+                            'is_recommending': True
+                        }
                     }
-                }
-            else:
-                # No wines found - this shouldn't happen if we have wines in catalog
-                logger.warning(f"No wines to return for single mode, wines_to_use count: {len(wines_to_use)}, wines_for_suggestions count: {len(wines_for_suggestions)}")
-                return {
-                    'message': ai_response,
-                    'wines': [],
-                    'wine_ids': [],
-                    'suggestions': [],
-                    'mode': 'single',
-                    'metadata': {
-                        'model': self.model,
-                        'tokens_used': response.usage.total_tokens if response.usage else 0,
-                        'gathered_info': gathered_info,
-                        'is_recommending': False
-                    }
-                }
-            
-        except AuthenticationError as e:
-            logger.error(f"OpenAI Authentication Error: {e}")
-            raise ValueError("Errore di autenticazione con il servizio AI. Verifica la configurazione API.")
         
-        except RateLimitError as e:
-            logger.error(f"OpenAI Rate Limit Error: {e}")
-            raise ValueError("Servizio AI momentaneamente sovraccarico. Riprova tra qualche secondo.")
+        wine_ids = [w.get('id') for w in wines_to_return if w.get('id')]
         
-        except APIError as e:
-            logger.error(f"OpenAI API Error: {e}")
-            raise ValueError(f"Errore del servizio AI: {str(e)}")
-        
-        except Exception as e:
-            logger.error(f"Unexpected error in process_b2c_message: {e}")
-            raise ValueError(f"Si è verificato un errore imprevisto. Riprova.")
+        return {
+            'message': ai_response,
+            'wines': wines_to_return,
+            'wine_ids': wine_ids,
+            'journeys': [],
+            'suggestions': [],
+            'mode': 'single',
+            'metadata': {
+                'model': self.model,
+                'tokens_used': response.usage.total_tokens if response.usage else 0,
+                'gathered_info': gathered_info,
+                'is_recommending': len(wines_to_return) > 0
+            }
+        }
     
     def process_b2b_message(
         self, 
@@ -535,8 +629,7 @@ class AIAgentService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=0.7,
-                max_tokens=1000
+                max_tokens=400  # Reduced for faster, more direct responses
             )
             
             ai_response = response.choices[0].message.content
@@ -847,7 +940,7 @@ class AIAgentService:
             if all_potential_matches:
                 logger.warning(f"Potential wine names found in text (but score <= 80): {all_potential_matches[:3]}")
         
-        # Return top 3 unique matches in order of appearance
+        # Return all unique matches in order of appearance (at least 2, but can return more)
         seen_ids = set()
         unique_wines = []
         for match in wine_matches:
@@ -856,47 +949,22 @@ class AIAgentService:
             if wine_id and wine_id not in seen_ids:
                 seen_ids.add(wine_id)
                 unique_wines.append(wine)
-            if len(unique_wines) >= 3:
-                break
+            # No limit - extract all matched wines (AI should suggest at least 2)
         
         return unique_wines
     
     def _build_wines_context(self, wines: List[Dict]) -> str:
-        """Build a text context of wines for the GPT prompt."""
+        """Build a text context of wines for the GPT prompt - ONLY name, type, price."""
         if not wines:
             return "⚠️ ATTENZIONE: La carta è vuota o non ci sono vini disponibili. DEVI comunque cercare di aiutare il cliente. Suggerisci di consultare la carta fisica del ristorante, ma mantieni un tono accogliente e professionale."
         
         context_parts = []
         for idx, wine in enumerate(wines, 1):
-            parts = [f"**{wine.get('name', 'N/D')}**"]
+            name = wine.get('name', 'N/D')
+            wine_type = wine.get('type', 'N/D')
+            price = wine.get('price', 'N/D')
             
-            if wine.get('vintage'):
-                parts[0] += f" {wine['vintage']}"
-            
-            details = []
-            if wine.get('type'):
-                details.append(wine['type'])
-            if wine.get('grape_variety'):
-                details.append(wine['grape_variety'])
-            if wine.get('region'):
-                details.append(wine['region'])
-            
-            if details:
-                parts.append(f"({', '.join(details)})")
-            
-            if wine.get('price'):
-                parts.append(f"- €{wine['price']}")
-            
-            if wine.get('description'):
-                desc = wine['description'][:100]
-                parts.append(f"| {desc}...")
-            
-            if wine.get('food_pairings'):
-                pairings = wine['food_pairings']
-                if isinstance(pairings, list):
-                    parts.append(f"| Abbinamenti: {', '.join(pairings[:3])}")
-            
-            context_parts.append(f"{idx}. " + " ".join(parts))
+            context_parts.append(f"{idx}. {name} | {wine_type} | €{price}")
         
         return "\n".join(context_parts)
     

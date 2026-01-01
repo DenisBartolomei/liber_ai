@@ -1,13 +1,16 @@
 """
 Chat Routes for LIBER (B2C Customer Chat)
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
+import logging
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import Venue, Session, Message, WineProposal, Product
 from app.services.ai_agent import AIAgentService
 from app.services.conversation_manager import ConversationManager
+
+logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
 
@@ -54,6 +57,7 @@ def track_wine_proposals(session_id, message_id, response_data):
                         margin=product.margin,
                         mode='journey',
                         journey_id=journey_id,
+                        proposal_reason=journey.get('reason', ''),  # Save journey reason
                         is_selected=False
                     )
                     proposals_to_create.append(proposal)
@@ -61,11 +65,44 @@ def track_wine_proposals(session_id, message_id, response_data):
         
         else:
             # Handle single mode
+            # PRIORITY: Use all_rankings if available (contains ALL ranked wines)
+            all_rankings = response_data.get('all_rankings', [])
             wines_to_return = response_data.get('wines', [])
             wine_ids = response_data.get('wine_ids', [])
             
-            # Use wines list if available (has full data), otherwise use wine_ids
-            if wines_to_return:
+            # Use all_rankings if available (has ALL wines with rank, reason, best)
+            if all_rankings:
+                for wine in all_rankings:
+                    product_id = wine.get('id')
+                    if not product_id:
+                        continue
+                    
+                    product = Product.query.get(product_id)
+                    if not product:
+                        continue
+                    
+                    # Use explicit rank from JSON, fallback to position if not available
+                    wine_rank = wine.get('rank')
+                    if wine_rank is None:
+                        wine_rank = rank_counter
+                    
+                    proposal = WineProposal(
+                        session_id=session_id,
+                        message_id=message_id,
+                        product_id=product_id,
+                        proposal_group_id=proposal_group_id,
+                        proposal_rank=wine_rank,  # Use explicit rank from JSON
+                        price=product.price,
+                        margin=product.margin,
+                        mode='single',
+                        journey_id=None,
+                        proposal_reason=wine.get('reason', ''),  # Save wine reason from JSON
+                        is_selected=False
+                    )
+                    proposals_to_create.append(proposal)
+                    rank_counter += 1
+            # Fallback: use wines list if available (has full data)
+            elif wines_to_return:
                 for wine in wines_to_return:
                     product_id = wine.get('id')
                     if not product_id:
@@ -75,22 +112,28 @@ def track_wine_proposals(session_id, message_id, response_data):
                     if not product:
                         continue
                     
+                    # Use explicit rank from JSON if available, otherwise use counter
+                    wine_rank = wine.get('rank')
+                    if wine_rank is None:
+                        wine_rank = rank_counter
+                    
                     proposal = WineProposal(
                         session_id=session_id,
                         message_id=message_id,
                         product_id=product_id,
                         proposal_group_id=proposal_group_id,
-                        proposal_rank=rank_counter,
+                        proposal_rank=wine_rank,
                         price=product.price,
                         margin=product.margin,
                         mode='single',
                         journey_id=None,
+                        proposal_reason=wine.get('reason', ''),  # Save wine reason from JSON
                         is_selected=False
                     )
                     proposals_to_create.append(proposal)
                     rank_counter += 1
+            # Last fallback: use wine_ids if wines list not available
             elif wine_ids:
-                # Fallback: use wine_ids if wines list not available
                 for product_id in wine_ids:
                     product = Product.query.get(product_id)
                     if not product:
@@ -142,6 +185,40 @@ def create_session():
     
     if not venue:
         return jsonify({'message': 'Locale non trovato'}), 404
+    
+    # Check for duplicate sessions created within the last 10 seconds
+    # (same venue, same IP address, same user agent)
+    recent_duplicate = Session.query.filter(
+        Session.venue_id == venue.id,
+        Session.mode == 'b2c',
+        Session.ip_address == request.remote_addr,
+        Session.created_at >= datetime.utcnow() - timedelta(seconds=10)
+    ).order_by(Session.created_at.desc()).first()
+    
+    if recent_duplicate:
+        # Count messages in the existing session
+        message_count = Message.query.filter_by(session_id=recent_duplicate.id).count()
+        
+        if message_count == 0:
+            # Empty session: delete it and create a new one
+            logger.info(f"Deleting empty duplicate session {recent_duplicate.id} created at {recent_duplicate.created_at}")
+            db.session.delete(recent_duplicate)
+            db.session.commit()
+            # Proceed with creating new session below
+        else:
+            # Session with data: return the existing one
+            logger.info(f"Returning existing session {recent_duplicate.id} with {message_count} messages")
+            welcome_message = venue.welcome_message or \
+                'Benvenuto! Sono il tuo sommelier virtuale. Come posso aiutarti nella scelta del vino oggi?'
+            
+            return jsonify({
+                'session_token': recent_duplicate.session_token,
+                'venue': {
+                    'name': venue.name,
+                    'logo_url': venue.logo_url
+                },
+                'welcome_message': welcome_message
+            }), 200
     
     # Create new session
     conversation_manager = ConversationManager()
@@ -285,12 +362,29 @@ def send_message():
     # Update session context if provided
     if message_context:
         current_context = session.context or {}
-        current_context.update(message_context)
+        
+        # Merge context intelligently - preserve existing data, update with new
+        # Handle nested structures (preferences, dishes)
+        if 'preferences' in message_context:
+            if 'preferences' not in current_context:
+                current_context['preferences'] = {}
+            current_context['preferences'].update(message_context['preferences'])
+        
+        if 'dishes' in message_context:
+            current_context['dishes'] = message_context['dishes']
+        
+        if 'guest_count' in message_context:
+            current_context['guest_count'] = message_context['guest_count']
+        
+        # Update other context fields
+        for key, value in message_context.items():
+            if key not in ['preferences', 'dishes', 'guest_count']:
+                current_context[key] = value
+        
         session.context = current_context
         
-        # Extract and save budget_initial and num_bottiglie_target from context
-        session.extract_budget_from_context()
-        session.extract_bottiglie_from_context()
+        # Extract and save all preferences from context (budget, bottles, and normalize structure)
+        session.save_preferences_from_context()
         
         db.session.commit()
     
@@ -308,6 +402,9 @@ def send_message():
         content=message_content
     )
     
+    # Refresh session to get updated message_count
+    db.session.refresh(session)
+    
     # Process message through AI agent
     try:
         ai_agent = AIAgentService()
@@ -318,17 +415,59 @@ def send_message():
             context=session.context  # Pass context with dishes and guest_count
         )
         
+        # Log response structure for debugging
+        import logging
+        logging.info(f"AI Agent response received: type={type(response)}, keys={list(response.keys()) if isinstance(response, dict) else 'not a dict'}")
+        logging.info(f"AI Agent response: has_message={bool(response.get('message'))}, message_type={type(response.get('message'))}, message_length={len(str(response.get('message', '')))}, is_opening={response.get('metadata', {}).get('is_opening', False)}, wines_count={len(response.get('wines', []))}, journeys_count={len(response.get('journeys', []))}")
+        
+        # Ensure message is always a string - handle None, empty, or non-string values
+        raw_message = response.get('message')
+        if raw_message is None:
+            logging.warning("Response message is None")
+            message_content = ''
+        elif not isinstance(raw_message, str):
+            logging.warning(f"Response message is not a string: type={type(raw_message)}, value={repr(raw_message)}")
+            message_content = str(raw_message) if raw_message else ''
+        else:
+            message_content = raw_message
+        
+        logging.info(f"Extracted message_content: type={type(message_content)}, length={len(message_content)}, is_empty={not message_content or not message_content.strip()}, preview={message_content[:100] if message_content else 'empty'}")
+        if not message_content:
+            # Generate fallback message if empty
+            is_opening = response.get('metadata', {}).get('is_opening', False)
+            
+            if is_opening:
+                # Opening message fallback - should not mention recommendations
+                message_content = "Benvenuti! Sono qui per aiutarvi a scegliere il vino perfetto per la vostra serata. Avete esigenze particolari o preferenze da comunicarmi?"
+            elif response.get('wines'):
+                wines = response.get('wines', [])
+                best_wine = next((w for w in wines if w.get('best')), wines[0] if wines else None)
+                if best_wine:
+                    message_content = f"Ecco il mio consiglio: {best_wine.get('name', 'Vino')} - €{best_wine.get('price', 'N/D')}"
+                else:
+                    message_content = "Ecco le mie raccomandazioni per voi."
+            elif response.get('journeys'):
+                message_content = "Ecco i percorsi di degustazione che ho preparato per voi."
+            else:
+                message_content = "Ecco le mie raccomandazioni per voi."
+        
         # Save assistant message
         assistant_message = conversation_manager.add_message(
             session=session,
             role='assistant',
-            content=response['message'],
+            content=message_content,
             metadata=response.get('metadata'),
             products=response.get('wine_ids')
         )
         
         # Track wine proposals for analytics (if AI recommended wines)
-        if response.get('is_recommending') and (response.get('wine_ids') or response.get('journeys')):
+        # Check is_recommending from metadata or directly, and ensure we have wines/journeys
+        is_recommending = response.get('metadata', {}).get('is_recommending', False) or response.get('is_recommending', False)
+        has_wines = response.get('wines') and len(response.get('wines', [])) > 0
+        has_journeys = response.get('journeys') and len(response.get('journeys', [])) > 0
+        has_wine_ids = response.get('wine_ids') and len(response.get('wine_ids', [])) > 0
+        
+        if is_recommending and (has_wines or has_journeys or has_wine_ids):
             track_wine_proposals(session.id, assistant_message.id, response)
         
         # Update session activity
@@ -336,9 +475,14 @@ def send_message():
         db.session.commit()
         
         return jsonify({
-            'message': response['message'],
+            'message': message_content,
+            'message_id': assistant_message.id,  # Include message ID for fetching rankings
             'wines': response.get('wines', []),
-            'suggestions': response.get('suggestions', [])
+            'all_rankings': response.get('all_rankings', []),  # Include all rankings
+            'journeys': response.get('journeys', []),
+            'suggestions': response.get('suggestions', []),
+            'mode': response.get('mode', 'single'),
+            'metadata': response.get('metadata', {})
         }), 200
         
     except ValueError as e:
@@ -357,6 +501,85 @@ def send_message():
         traceback.print_exc()
         return jsonify({
             'message': 'Si è verificato un errore imprevisto. Riprova tra qualche secondo.'
+        }), 500
+
+
+@chat_bp.route('/messages/<int:message_id>/rankings', methods=['GET'])
+def get_message_rankings(message_id):
+    """
+    Get all ranked wines for a specific message.
+    
+    Returns all WineProposals for the message, ordered by rank,
+    with full product details.
+    """
+    try:
+        # Find message
+        message = Message.query.get(message_id)
+        if not message:
+            return jsonify({'message': 'Messaggio non trovato'}), 404
+        
+        # Get all wine proposals for this message, ordered by rank
+        proposals = WineProposal.query.filter_by(
+            message_id=message_id
+        ).order_by(WineProposal.proposal_rank.asc()).all()
+        
+        if not proposals:
+            return jsonify({
+                'message_id': message_id,
+                'wines': []
+            }), 200
+        
+        # Enrich proposals with full product data
+        wines = []
+        for proposal in proposals:
+            product = proposal.product
+            if not product:
+                continue
+            
+            # Get product details (using safe access for optional fields)
+            wine_data = {
+                'id': product.id,
+                'name': product.name,
+                'price': float(product.price) if product.price else None,
+                'type': product.type,
+                'rank': proposal.proposal_rank,
+                'reason': proposal.proposal_reason or '',
+                'best': proposal.proposal_rank == 1,  # Rank 1 is best
+                'is_selected': proposal.is_selected,
+                'image_url': product.image_url
+            }
+            
+            # Add optional fields if they exist
+            try:
+                # Use getattr to safely access optional fields
+                if hasattr(product, 'region') and product.region:
+                    wine_data['region'] = product.region
+                if hasattr(product, 'grape_variety') and product.grape_variety:
+                    wine_data['grape_variety'] = product.grape_variety
+                if hasattr(product, 'vintage') and product.vintage:
+                    wine_data['vintage'] = product.vintage
+                if hasattr(product, 'description') and product.description:
+                    wine_data['description'] = product.description
+                if hasattr(product, 'tasting_notes') and product.tasting_notes:
+                    wine_data['tasting_notes'] = product.tasting_notes
+            except Exception as e:
+                # If optional fields don't exist, continue without them
+                import logging
+                logging.debug(f"Could not access optional fields for product {product.id}: {e}")
+            
+            wines.append(wine_data)
+        
+        return jsonify({
+            'message_id': message_id,
+            'wines': wines
+        }), 200
+        
+    except Exception as e:
+        import logging
+        logging.error(f"Error fetching message rankings: {e}", exc_info=True)
+        return jsonify({
+            'message': 'Errore nel recupero dei rankings',
+            'error': str(e)
         }), 500
 
 

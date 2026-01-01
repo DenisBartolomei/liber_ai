@@ -178,7 +178,7 @@ Il database utilizza **PostgreSQL** tramite **Supabase**. Lo schema è definito 
 ## 🤖 AI Integration
 
 ### OpenAI GPT
-- Modello: GPT-4o-mini (configurabile per fine-tuned model)
+- Modello:(configurabile per fine-tuned model)
 - System prompts dinamici per B2B e B2C
 - Context management per conversazioni coerenti
 

@@ -45,7 +45,6 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
-      - ./.cursor:/app/.cursor
       - backend_static:/app/static
     networks:
       - liber-network

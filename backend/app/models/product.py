@@ -8,7 +8,7 @@ from app import db
 class Product(db.Model):
     """
     Product entity representing a wine or beverage in a venue's catalog.
-    Includes all information needed for AI recommendations and vector search.
+    Only includes fields that exist in the database.
     """
     __tablename__ = 'products'
     
@@ -18,61 +18,30 @@ class Product(db.Model):
     # Basic Info
     name = db.Column(db.String(255), nullable=False)
     type = db.Column(db.String(50), nullable=False)  # red, white, rose, sparkling, dessert, fortified
-    category = db.Column(db.String(100))  # Still, Sparkling, Fortified, etc.
-    
-    # Wine Details
-    region = db.Column(db.String(255))
-    country = db.Column(db.String(100), default='Italia')
-    appellation = db.Column(db.String(255))  # DOC, DOCG, IGT, etc.
-    grape_variety = db.Column(db.String(255))  # Can be multiple: "Sangiovese, Merlot"
-    vintage = db.Column(db.Integer)
-    
-    # Producer Info
-    producer = db.Column(db.String(255))
-    winemaker = db.Column(db.String(255))
-    
-    # Characteristics
-    alcohol_content = db.Column(db.Float)
-    body = db.Column(db.String(50))  # light, medium, full
-    sweetness = db.Column(db.String(50))  # dry, off-dry, sweet
-    tannin_level = db.Column(db.String(50))  # low, medium, high
-    acidity_level = db.Column(db.String(50))  # low, medium, high
     
     # Pricing
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    price_glass = db.Column(db.Numeric(10, 2))
-    cost_price = db.Column(db.Numeric(10, 2))  # For margin calculations
-    margin = db.Column(db.Numeric(10, 2))  # Calculated margin (price - cost_price)
-    
-    # Descriptions
-    description = db.Column(db.Text)
-    tasting_notes = db.Column(db.Text)
-    aroma_profile = db.Column(db.JSON)  # ['cherry', 'oak', 'vanilla']
-    
-    # Food Pairings
-    food_pairings = db.Column(db.JSON)  # ['beef', 'pasta', 'aged cheese']
-    pairing_notes = db.Column(db.Text)
-    
-    # Service
-    serving_temperature = db.Column(db.String(50))  # "16-18°C"
-    decanting_time = db.Column(db.String(50))  # "1-2 hours"
-    glass_type = db.Column(db.String(100))  # "Burgundy glass"
-    
-    # Vector DB
-    qdrant_id = db.Column(db.String(100), unique=True, index=True)
-    embedding_updated_at = db.Column(db.DateTime)
+    cost_price = db.Column(db.Numeric(10, 2), nullable=True)  # For margin calculations
+    margin = db.Column(db.Numeric(10, 2), nullable=True)  # Calculated margin (price - cost_price)
     
     # Inventory
-    is_available = db.Column(db.Boolean, default=True)
-    stock_quantity = db.Column(db.Integer)
+    is_available = db.Column(db.Boolean, default=True, nullable=True)
     
     # Metadata
-    image_url = db.Column(db.String(500))
-    external_id = db.Column(db.String(100))  # For imports from external systems
+    image_url = db.Column(db.String(500), nullable=True)  # URL for label image
+    
+    # Wine Identity Card fields (optional - may not exist in all databases)
+    # These are accessed via getattr() in to_dict() to avoid errors if columns don't exist
+    # Note: If these columns exist in your database, you can uncomment them:
+    # color = db.Column(db.String(255), nullable=True)  # Wine color description
+    # aromas = db.Column(db.Text, nullable=True)  # Wine aromas description
+    # body = db.Column(db.Integer, nullable=True)  # Body level 1-10
+    # tannin_level = db.Column(db.Integer, nullable=True)  # Tannin level 1-10
+    # acidity_level = db.Column(db.Integer, nullable=True)  # Acidity level 1-10
     
     # Timestamps
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
     
     def __repr__(self):
         return f'<Product {self.name}>'
@@ -84,41 +53,64 @@ class Product(db.Model):
             'venue_id': self.venue_id,
             'name': self.name,
             'type': self.type,
-            'region': self.region,
-            'grape_variety': self.grape_variety,
-            'vintage': self.vintage,
             'price': float(self.price) if self.price else None,
-            'description': self.description,
-            'is_available': self.is_available
+            'is_available': self.is_available if hasattr(self, 'is_available') else True
         }
         
+        # Try to get optional fields using getattr (they may not exist in DB)
+        # These will be None if the column doesn't exist
+        region = getattr(self, 'region', None)
+        if region:
+            data['region'] = region
+            
+        grape_variety = getattr(self, 'grape_variety', None)
+        if grape_variety:
+            data['grape_variety'] = grape_variety
+            
+        vintage = getattr(self, 'vintage', None)
+        if vintage:
+            data['vintage'] = vintage
+            
+        description = getattr(self, 'description', None)
+        if description:
+            data['description'] = description
+            
+        image_url = getattr(self, 'image_url', None)
+        if image_url:
+            data['image_url'] = image_url
+            
+        # Wine Identity Card fields
+        color = getattr(self, 'color', None)
+        if color:
+            data['color'] = color
+            
+        aromas = getattr(self, 'aromas', None)
+        if aromas:
+            data['aromas'] = aromas
+            
+        body = getattr(self, 'body', None)
+        if body is not None:
+            data['body'] = body
+            
+        tannin_level = getattr(self, 'tannin_level', None)
+        if tannin_level is not None:
+            data['tannin_level'] = tannin_level
+            
+        acidity_level = getattr(self, 'acidity_level', None)
+        if acidity_level is not None:
+            data['acidity_level'] = acidity_level
+        
         if detailed:
-            data.update({
-                'category': self.category,
-                'country': self.country,
-                'appellation': self.appellation,
-                'producer': self.producer,
-                'winemaker': self.winemaker,
-                'alcohol_content': self.alcohol_content,
-                'body': self.body,
-                'sweetness': self.sweetness,
-                'tannin_level': self.tannin_level,
-                'acidity_level': self.acidity_level,
-                'price_glass': float(self.price_glass) if self.price_glass else None,
-                'tasting_notes': self.tasting_notes,
-                'aroma_profile': self.aroma_profile,
-                'food_pairings': self.food_pairings,
-                'pairing_notes': self.pairing_notes,
-                'serving_temperature': self.serving_temperature,
-                'decanting_time': self.decanting_time,
-                'glass_type': self.glass_type,
-                'image_url': self.image_url,
-                'stock_quantity': self.stock_quantity,
-                'cost_price': float(self.cost_price) if self.cost_price else None,
-                'margin': float(self.margin) if self.margin else None,
-                'created_at': self.created_at.isoformat() if self.created_at else None,
-                'updated_at': self.updated_at.isoformat() if self.updated_at else None
-            })
+            cost_price = getattr(self, 'cost_price', None)
+            if cost_price:
+                data['cost_price'] = float(cost_price)
+            margin = getattr(self, 'margin', None)
+            if margin:
+                data['margin'] = float(margin)
+            if hasattr(self, 'created_at') and self.created_at:
+                data['created_at'] = self.created_at.isoformat()
+            if hasattr(self, 'updated_at') and self.updated_at:
+                data['updated_at'] = self.updated_at.isoformat()
         
         return data
     
@@ -141,14 +133,6 @@ class Product(db.Model):
         parts = [
             f"Vino: {self.name}",
             f"Tipo: {self.type}" if self.type else "",
-            f"Regione: {self.region}" if self.region else "",
-            f"Vitigno: {self.grape_variety}" if self.grape_variety else "",
-            f"Annata: {self.vintage}" if self.vintage else "",
-            f"Produttore: {self.producer}" if self.producer else "",
-            f"Descrizione: {self.description}" if self.description else "",
-            f"Note degustazione: {self.tasting_notes}" if self.tasting_notes else "",
-            f"Abbinamenti: {', '.join(self.food_pairings)}" if self.food_pairings else "",
-            f"Corpo: {self.body}" if self.body else "",
             f"Prezzo: €{self.price}" if self.price else ""
         ]
         return " | ".join([p for p in parts if p])
@@ -173,7 +157,6 @@ def calculate_margin_on_update(mapper, connection, target):
 # Indexes for better query performance
 db.Index('idx_products_venue_id', Product.venue_id)
 db.Index('idx_products_type', Product.type)
-db.Index('idx_products_region', Product.region)
 db.Index('idx_products_is_available', Product.is_available)
 db.Index('idx_products_price', Product.price)
 db.Index('idx_products_venue_type', Product.venue_id, Product.type)

@@ -67,8 +67,7 @@ class MenuItem(db.Model):
             f"Piatto: {self.name}",
             f"Categoria: {self.category}" if self.category else "",
             f"Ingrediente principale: {self.main_ingredient}" if self.main_ingredient else "",
-            f"Cottura: {self.cooking_method}" if self.cooking_method else "",
-            f"Descrizione: {self.description}" if self.description else ""
+            f"Cottura: {self.cooking_method}" if self.cooking_method else ""
         ]
         if self.flavor_profile:
             parts.append(f"Profilo: {', '.join(self.flavor_profile)}")

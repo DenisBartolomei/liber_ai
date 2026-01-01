@@ -331,4 +331,44 @@ class ConversationManager:
             'avg_messages': round(avg_messages, 1),
             'avg_rating': round(avg_rating, 1)
         }
+    
+    def cleanup_empty_sessions(self, venue_id: Optional[int] = None, days: int = 1) -> int:
+        """
+        Clean up empty B2C sessions (sessions with no messages).
+        Useful for removing duplicate or abandoned sessions from historical data.
+        
+        Args:
+            venue_id: Optional venue ID to filter by. If None, cleans all venues.
+            days: Only delete sessions older than this many days (default: 1 day)
+            
+        Returns:
+            Number of sessions deleted
+        """
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        
+        # Build base query for empty B2C sessions
+        query = Session.query.filter(
+            Session.mode == 'b2c',
+            Session.created_at < cutoff_date
+        )
+        
+        # Filter by venue if specified
+        if venue_id:
+            query = query.filter(Session.venue_id == venue_id)
+        
+        # Get all candidate sessions
+        candidate_sessions = query.all()
+        
+        # Check each session for messages and delete if empty
+        deleted_count = 0
+        for session in candidate_sessions:
+            message_count = Message.query.filter_by(session_id=session.id).count()
+            if message_count == 0:
+                db.session.delete(session)
+                deleted_count += 1
+        
+        if deleted_count > 0:
+            db.session.commit()
+        
+        return deleted_count
 
