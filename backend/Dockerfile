@@ -1,4 +1,4 @@
-# LIBER - Backend Dockerfile
+# LIBER - Backend Dockerfile (Production)
 FROM python:3.11-slim
 
 # Set working directory
@@ -27,11 +27,14 @@ RUN pip install --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Create static directory for QR codes
+# Create static directory (legacy, not used with Supabase Storage but kept for compatibility)
 RUN mkdir -p /app/static/qrcodes
 
-# Expose port
-EXPOSE 5000
+# Expose port (Cloud Run standard)
+EXPOSE 8080
 
-# Run the application
-CMD ["python", "run.py"]
+# Use Gunicorn for production
+# Workers: 2-4 * CPU cores (Cloud Run provides 2 CPUs)
+# Threads: 4 per worker for I/O-bound operations (DB, API calls)
+# Timeout: 120s (Cloud Run max is 3600s, but we use 300s in deploy)
+CMD exec gunicorn --bind :8080 --workers 2 --threads 4 --timeout 120 --access-logfile - --error-logfile - run:app

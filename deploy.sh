@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 # Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-your-project-id}"
@@ -42,6 +42,29 @@ gcloud services enable containerregistry.googleapis.com --project=${PROJECT_ID}
 # Set project
 gcloud config set project ${PROJECT_ID}
 
+# Create a temporary env file
+echo "📄 Creating temporary env.yaml file..."
+cat << EOT > env.yaml
+DATABASE_URL: "${DATABASE_URL}"
+QDRANT_HOST: "${QDRANT_HOST}"
+QDRANT_PORT: "${QDRANT_PORT:-6333}"
+OPENAI_API_KEY: "${OPENAI_API_KEY}"
+OPENAI_MODEL: "${OPENAI_MODEL}"
+OPENAI_FINETUNED_MODEL: "${OPENAI_FINETUNED_MODEL}"
+OPENAI_COMMUNICATION_MODEL: "${OPENAI_COMMUNICATION_MODEL}"
+OPENAI_EMBEDDING_MODEL: "${OPENAI_EMBEDDING_MODEL}"
+SUPABASE_URL: "${SUPABASE_URL}"
+SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY}"
+SUPABASE_STORAGE_BUCKET_QRCODES: "${SUPABASE_STORAGE_BUCKET_QRCODES:-qrcodes}"
+SUPABASE_STORAGE_BUCKET_WINE_LABELS: "${SUPABASE_STORAGE_BUCKET_WINE_LABELS:-wine-labels}"
+SECRET_KEY: "${SECRET_KEY}"
+JWT_SECRET_KEY: "${JWT_SECRET_KEY}"
+FLASK_ENV: "production"
+EOT
+
+echo "🔍 Content of env.yaml:"
+cat env.yaml
+
 # 1. Build and Deploy Backend
 echo "🔨 Building and Deploying backend..."
 gcloud builds submit --tag gcr.io/${PROJECT_ID}/liber-backend:latest ./backend
@@ -57,7 +80,10 @@ gcloud run deploy liber-backend \
     --max-instances 10 \
     --min-instances 0 \
     --port 8080 \
-    --set-env-vars DATABASE_URL="${DATABASE_URL}",QDRANT_HOST="${QDRANT_HOST}",QDRANT_PORT="${QDRANT_PORT:-6333}",OPENAI_API_KEY="${OPENAI_API_KEY}",OPENAI_MODEL="${OPENAI_MODEL}",OPENAI_FINETUNED_MODEL="${OPENAI_FINETUNED_MODEL}",OPENAI_COMMUNICATION_MODEL="${OPENAI_COMMUNICATION_MODEL}",OPENAI_EMBEDDING_MODEL="${OPENAI_EMBEDDING_MODEL}",SUPABASE_URL="${SUPABASE_URL}",SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY}",SUPABASE_STORAGE_BUCKET_QRCODES="${SUPABASE_STORAGE_BUCKET_QRCODES:-qrcodes}",SUPABASE_STORAGE_BUCKET_WINE_LABELS="${SUPABASE_STORAGE_BUCKET_WINE_LABELS:-wine-labels}",SECRET_KEY="${SECRET_KEY}",JWT_SECRET_KEY="${JWT_SECRET_KEY}",FLASK_ENV=production
+    --env-vars-file env.yaml
+
+# Clean up the env.yaml file
+rm env.yaml
 
 # 2. Get backend URL
 BACKEND_URL=$(gcloud run services describe liber-backend --region=${REGION} --format="value(status.url)")
@@ -98,7 +124,7 @@ echo "✓ Frontend deployed at: ${FRONTEND_URL}"
 echo "🔄 Updating backend with frontend URL..."
 gcloud run services update liber-backend \
     --region ${REGION} \
-    --update-env-vars FRONTEND_URL=${FRONTEND_URL}
+    --update-env-vars "FRONTEND_URL=${FRONTEND_URL}"
 
 echo "✅ Deployment completed successfully!"
 echo ""
@@ -111,4 +137,3 @@ echo "   1. Test the application at ${FRONTEND_URL}"
 echo "   2. Set up custom domains (optional)"
 echo "   3. Configure monitoring and logging"
 echo "   4. Set up CI/CD for automatic deployments"
-
