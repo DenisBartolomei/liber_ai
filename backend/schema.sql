@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS venues (
     plan VARCHAR(50) DEFAULT 'trial',
     trial_ends_at TIMESTAMP,
     
+    -- Conversation limit
+    annual_conversation_limit INTEGER DEFAULT NULL,  -- NULL = unlimited
+    
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

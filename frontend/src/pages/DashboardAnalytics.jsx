@@ -904,6 +904,7 @@ function DashboardAnalytics() {
                   </motion.div>
                 )}
               </div>
+            </div>
             )}
           </>
         )}

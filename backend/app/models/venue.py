@@ -3,6 +3,7 @@ Venue Model - Represents a restaurant/venue in the system
 """
 from datetime import datetime
 from app import db
+from app.models.session import Session
 
 
 class Venue(db.Model):
@@ -40,6 +41,9 @@ class Venue(db.Model):
     plan = db.Column(db.String(50), default='trial')
     trial_ends_at = db.Column(db.DateTime)
     
+    # Conversation limit
+    annual_conversation_limit = db.Column(db.Integer, default=None)  # None = unlimited
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -71,6 +75,7 @@ class Venue(db.Model):
             'is_active': self.is_active,
             'is_onboarded': self.is_onboarded,
             'plan': self.plan,
+            'annual_conversation_limit': self.annual_conversation_limit,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'featured_wines': self.get_featured_wines()  # Include featured wines for easy access
         }
@@ -81,6 +86,8 @@ class Venue(db.Model):
                 'total_sessions': self.sessions.count(),
                 'total_users': self.users.count()
             }
+            data['annual_conversation_count'] = self.get_annual_conversation_count()
+            data['annual_conversation_limit'] = self.annual_conversation_limit
         
         return data
     
@@ -143,6 +150,38 @@ class Venue(db.Model):
         
         self.preferences['featured_wines'] = product_ids
         return True, "Vini in evidenza aggiornati con successo"
+    
+    def get_annual_conversation_count(self):
+        """
+        Count B2C conversations (sessions) created in the current year.
+        
+        Returns:
+            Integer count of conversations
+        """
+        current_year_start = datetime(datetime.now().year, 1, 1)
+        
+        # Use the relationship to filter sessions
+        return self.sessions.filter(
+            Session.mode == 'b2c',
+            Session.created_at >= current_year_start
+        ).count()
+    
+    def can_create_conversation(self):
+        """
+        Check if venue can create a new conversation (B2C session).
+        
+        Returns:
+            Tuple (can_create: bool, message: str)
+        """
+        if self.annual_conversation_limit is None:
+            return True, "Unlimited"
+        
+        current_count = self.get_annual_conversation_count()
+        
+        if current_count >= self.annual_conversation_limit:
+            return False, f"Limite annuale raggiunto ({self.annual_conversation_limit} conversazioni)"
+        
+        return True, f"{current_count}/{self.annual_conversation_limit} conversazioni utilizzate"
     
     @staticmethod
     def generate_slug(name):

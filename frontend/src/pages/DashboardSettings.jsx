@@ -15,7 +15,9 @@ import {
   Sparkles,
   ChefHat,
   Wine,
-  X
+  X,
+  MessageSquare,
+  AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { venueService, menuService, productService } from '../services/api'
@@ -45,7 +47,8 @@ function DashboardSettings() {
   const [qrCodeImage, setQrCodeImage] = useState(null)
   const [formData, setFormData] = useState({
     name: venue?.name || '',
-    description: venue?.description || ''
+    description: venue?.description || '',
+    annual_conversation_limit: venue?.annual_conversation_limit || null
   })
   
   // Menu management state
@@ -71,7 +74,8 @@ function DashboardSettings() {
     if (venue) {
       setFormData({
         name: venue.name || '',
-        description: venue.description || ''
+        description: venue.description || '',
+        annual_conversation_limit: venue.annual_conversation_limit || null
       })
     }
   }, [venue])
@@ -605,11 +609,114 @@ Risotto ai funghi - €18`}
         </div>
       </motion.div>
 
-      {/* Featured Wines Section */}
+      {/* Conversation Limit Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
+        className="card"
+      >
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+            <MessageSquare className="w-5 h-5 text-purple-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-display text-lg font-semibold text-burgundy-900">
+              Limite Conversazioni Annuali
+            </h2>
+            <p className="text-sm text-burgundy-600">
+              Limite massimo di conversazioni B2C (clienti) per anno solare
+            </p>
+            {venue?.annual_conversation_count !== undefined && (
+              <p className="text-xs text-burgundy-500 mt-1">
+                Utilizzate: {venue.annual_conversation_count || 0}
+                {venue?.annual_conversation_limit ? ` / ${venue.annual_conversation_limit}` : ' (illimitate)'}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-burgundy-700 mb-2">
+              Limite Annuale
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="0"
+                value={formData.annual_conversation_limit ?? ''}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  annual_conversation_limit: e.target.value === '' ? null : parseInt(e.target.value) || null
+                }))}
+                placeholder="Illimitato (lascia vuoto)"
+                className="input-field flex-1"
+              />
+              <button
+                onClick={() => setFormData(prev => ({ ...prev, annual_conversation_limit: null }))}
+                className="btn-outline text-sm"
+              >
+                Illimitato
+              </button>
+            </div>
+            <p className="text-xs text-burgundy-500 mt-1">
+              Lascia vuoto per permettere conversazioni illimitate. Il conteggio viene resettato il 1° gennaio.
+            </p>
+          </div>
+
+          {venue?.annual_conversation_count !== undefined && venue?.annual_conversation_limit && (
+            <div className={`p-4 rounded-xl border-2 ${
+              (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                ? 'bg-red-50 border-red-200'
+                : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-green-50 border-green-200'
+            }`}>
+              <div className="flex items-start gap-2">
+                <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
+                  (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                    ? 'text-red-600'
+                    : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                    ? 'text-yellow-600'
+                    : 'text-green-600'
+                }`} />
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                      ? 'text-red-900'
+                      : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                      ? 'text-yellow-900'
+                      : 'text-green-900'
+                  }`}>
+                    {(venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                      ? 'Limite raggiunto'
+                      : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                      ? 'Limite quasi raggiunto'
+                      : 'Stato normale'}
+                  </p>
+                  <p className={`text-xs mt-1 ${
+                    (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                      ? 'text-red-700'
+                      : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                      ? 'text-yellow-700'
+                      : 'text-green-700'
+                  }`}>
+                    {venue.annual_conversation_count || 0} di {venue.annual_conversation_limit} conversazioni utilizzate 
+                    ({Math.round(((venue.annual_conversation_count || 0) / venue.annual_conversation_limit) * 100)}%)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Featured Wines Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
         className="card"
       >
         <div className="flex items-start gap-3 mb-6">

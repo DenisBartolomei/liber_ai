@@ -74,8 +74,8 @@ gcloud run deploy liber-backend \
     --platform managed \
     --region ${REGION} \
     --allow-unauthenticated \
-    --memory 2Gi \
-    --cpu 2 \
+    --memory 4Gi \
+    --cpu 1 \
     --timeout 300 \
     --max-instances 10 \
     --min-instances 0 \
@@ -110,7 +110,7 @@ gcloud run deploy liber-frontend \
     --platform managed \
     --region ${REGION} \
     --allow-unauthenticated \
-    --memory 1Gi \
+    --memory 2Gi \
     --cpu 1 \
     --max-instances 5 \
     --min-instances 0 \

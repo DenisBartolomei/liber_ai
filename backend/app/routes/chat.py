@@ -186,6 +186,14 @@ def create_session():
     if not venue:
         return jsonify({'message': 'Locale non trovato'}), 404
     
+    # Check annual conversation limit
+    can_create, limit_message = venue.can_create_conversation()
+    if not can_create:
+        return jsonify({
+            'message': 'Limite conversazioni annuali raggiunto',
+            'detail': limit_message
+        }), 429  # 429 Too Many Requests
+    
     # Check for duplicate sessions created within the last 10 seconds
     # (same venue, same IP address, same user agent)
     recent_duplicate = Session.query.filter(
