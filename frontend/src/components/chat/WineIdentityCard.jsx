@@ -70,7 +70,7 @@ function WineIdentityCard({ wine, onClose }) {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-4xl w-full"
+      className="bg-white rounded-xl md:rounded-2xl shadow-2xl overflow-hidden max-w-full md:max-w-4xl w-full"
     >
       {/* Header with close button */}
       <div className="relative bg-gradient-to-br from-burgundy-900 to-burgundy-700 p-6">

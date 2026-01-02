@@ -1060,8 +1060,8 @@ function CustomerChat() {
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-4 py-4 md:py-6">
+        <div className="max-w-2xl mx-auto space-y-4 w-full">
           <AnimatePresence mode="popLayout">
             {visibleMessages.map((message, msgIdx) => (
               <motion.div
@@ -1072,17 +1072,17 @@ function CustomerChat() {
                 className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
               >
                 {message.role === 'assistant' ? (
-                  <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-10 h-10 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
-                      <Wine className="w-5 h-5 text-burgundy-900" />
+                  <div className="flex gap-2 md:gap-3 max-w-[90%] md:max-w-[85%] w-full">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                      <Wine className="w-4 h-4 md:w-5 md:h-5 text-burgundy-900" />
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2 md:space-y-3 flex-1 min-w-0">
                       {/* Render message content - always show if exists or if we have wines/journeys */}
                       {(message.content && message.content.trim()) || (message.wines && message.wines.length > 0) || (message.journeys && message.journeys.length > 0) ? (
                         message.content && message.content.trim() ? (
-                      <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-burgundy-100">
+                      <div className="bg-white rounded-xl md:rounded-2xl rounded-tl-sm px-3 md:px-4 py-2 md:py-3 shadow-sm border border-burgundy-100 overflow-x-hidden">
                         {/* Render markdown formatted message */}
-                        <div className="text-burgundy-800 leading-relaxed prose prose-burgundy prose-sm max-w-none">
+                        <div className="text-burgundy-800 leading-relaxed prose prose-burgundy prose-sm max-w-none break-words overflow-wrap-anywhere">
                           <ReactMarkdown
                             components={{
                               // Style paragraphs
@@ -1132,19 +1132,20 @@ function CustomerChat() {
                           
                           {/* All recommended wines - show all as selectable cards */}
                           {message.wines.length > 0 && (
-                            <div className="space-y-2">
+                            <div className="space-y-2 w-full overflow-x-hidden">
                               {message.wines.map((wine, idx) => (
-                                <WineCard 
-                                  key={wine.id || idx}
-                                  wine={wine} 
-                                  isMainRecommendation={wine.best === true || (wine.best === undefined && idx === 0)}
-                                  selected={selectedWineByMessage[message.id] === wine.id || 
-                                           (selectedWineByMessage[message.id] === undefined && (wine.best === true || (wine.best === undefined && idx === 0)) && wine.id)}
-                                  onClick={() => setSelectedWineByMessage(prev => ({
-                                    ...prev,
-                                    [message.id]: wine.id
-                                  }))}
-                                />
+                                <div key={wine.id || idx} className="w-full">
+                                  <WineCard 
+                                    wine={wine} 
+                                    isMainRecommendation={wine.best === true || (wine.best === undefined && idx === 0)}
+                                    selected={selectedWineByMessage[message.id] === wine.id || 
+                                             (selectedWineByMessage[message.id] === undefined && (wine.best === true || (wine.best === undefined && idx === 0)) && wine.id)}
+                                    onClick={() => setSelectedWineByMessage(prev => ({
+                                      ...prev,
+                                      [message.id]: wine.id
+                                    }))}
+                                  />
+                                </div>
                               ))}
                             </div>
                           )}
@@ -1155,7 +1156,7 @@ function CustomerChat() {
                               initial={{ opacity: 0, y: 5 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: 0.5 }}
-                              className="flex gap-3 pt-2"
+                              className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-2 w-full"
                             >
                               <button
                                 onClick={() => {
@@ -1165,10 +1166,10 @@ function CustomerChat() {
                                   }
                                 }}
                                 disabled={isLoading || (!selectedWineByMessage[message.id] && !message.wines[0]?.id)}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                className="flex-1 flex items-center justify-center gap-2 px-3 md:px-4 py-2.5 md:py-3 bg-green-600 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
-                                <CheckCircle2 className="w-5 h-5" />
-                                Conferma questa etichetta
+                                <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                                <span className="truncate">Conferma questa etichetta</span>
                               </button>
                               <button
                                 onClick={async () => {
@@ -1203,10 +1204,10 @@ function CustomerChat() {
                                   }
                                 }}
                                 disabled={isLoading}
-                                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                className="flex-1 flex items-center justify-center gap-2 px-3 md:px-4 py-2.5 md:py-3 bg-gold-500 text-burgundy-900 rounded-lg md:rounded-xl text-sm md:text-base font-semibold hover:bg-gold-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
-                                <Star className="w-5 h-5" />
-                                Valuta tutti i vini
+                                <Star className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                                <span className="truncate">Valuta tutti i vini</span>
                               </button>
                             </motion.div>
                           )}
@@ -1237,11 +1238,11 @@ function CustomerChat() {
                             >
                               <div className="flex items-start justify-between mb-3">
                                 <div>
-                                  <h4 className="font-display font-semibold text-burgundy-900 text-lg">
+                                  <h4 className="font-display font-semibold text-burgundy-900 text-base md:text-lg break-words">
                                     {journey.name || `Percorso ${journeyIdx + 1}`}
                                   </h4>
                                   {(journey.reason || journey.description) && (
-                                    <p className="text-sm text-burgundy-600 mt-1">{journey.reason || journey.description}</p>
+                                    <p className="text-xs md:text-sm text-burgundy-600 mt-1 break-words">{journey.reason || journey.description}</p>
                                   )}
                                 </div>
                                 <button

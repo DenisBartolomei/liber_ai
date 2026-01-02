@@ -158,10 +158,14 @@ class Venue(db.Model):
         Returns:
             Integer count of conversations
         """
+        from app.models import Session
+        from datetime import datetime
+        
         current_year_start = datetime(datetime.now().year, 1, 1)
         
-        # Use the relationship to filter sessions
-        return self.sessions.filter(
+        # Query directly from Session model to ensure correct filtering
+        return Session.query.filter(
+            Session.venue_id == self.id,
             Session.mode == 'b2c',
             Session.created_at >= current_year_start
         ).count()

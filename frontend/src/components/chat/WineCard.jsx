@@ -74,9 +74,9 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
       onClick={onClick}
       className={cardClasses}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-2 md:gap-4">
         {/* Wine Image or Icon */}
-        <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-burgundy-100">
+        <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-burgundy-100">
           {(() => {
             const getImageUrl = () => {
               if (!wine.image_url) return null
@@ -149,9 +149,9 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
               </div>
             </div>
             {wine.price && (
-              <div className="flex items-center text-gold-600 font-bold whitespace-nowrap">
+              <div className="flex items-center text-gold-600 font-bold flex-shrink-0 ml-2">
                 <Euro className="w-4 h-4" />
-                <span>{wine.price}</span>
+                <span className="truncate max-w-[80px] md:max-w-none">{wine.price}</span>
               </div>
             )}
           </div>
@@ -238,7 +238,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowIdentityCard(false)}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 overflow-y-auto"
             >
               {/* Modal Content */}
               <motion.div
@@ -247,7 +247,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-4xl"
+                className="w-full max-w-full md:max-w-4xl mx-2 md:mx-4"
               >
                 <WineIdentityCard
                   wine={wine}

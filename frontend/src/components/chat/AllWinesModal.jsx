@@ -23,7 +23,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 overflow-y-auto"
           >
             {/* Modal Content - Fullscreen */}
             <motion.div
@@ -32,19 +32,19 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full h-full max-w-6xl max-h-[90vh] bg-cream-50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+              className="w-full h-full max-w-full md:max-w-6xl max-h-[95vh] md:max-h-[90vh] bg-cream-50 rounded-xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden mx-0 md:mx-4"
             >
               {/* Header */}
-              <div className="bg-gradient-to-r from-burgundy-900 to-burgundy-800 text-cream-50 px-6 py-4 flex items-center justify-between border-b border-burgundy-700">
+              <div className="bg-gradient-to-r from-burgundy-900 to-burgundy-800 text-cream-50 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between border-b border-burgundy-700">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gold-500 rounded-xl flex items-center justify-center">
                     <Star className="w-6 h-6 text-burgundy-900" />
                   </div>
                   <div>
-                    <h2 className="font-display text-2xl font-bold">
+                    <h2 className="font-display text-lg md:text-2xl font-bold">
                       Valuta tutti i vini
                     </h2>
-                    <p className="text-sm text-cream-100/70">
+                    <p className="text-xs md:text-sm text-cream-100/70">
                       {wines?.length || 0} vini disponibili per la tua selezione
                     </p>
                   </div>
@@ -59,7 +59,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
               </div>
 
               {/* Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-3 md:p-6">
                 {isLoading ? (
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
@@ -138,8 +138,8 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
               </div>
 
               {/* Footer */}
-              <div className="border-t border-burgundy-200 bg-cream-100 px-6 py-4">
-                <p className="text-sm text-burgundy-600 text-center">
+              <div className="border-t border-burgundy-200 bg-cream-100 px-4 md:px-6 py-3 md:py-4">
+                <p className="text-xs md:text-sm text-burgundy-600 text-center">
                   Clicca su un vino per selezionarlo
                 </p>
               </div>

@@ -18,7 +18,7 @@ import {
   TrendingDown,
   Package
 } from 'lucide-react'
-import { analyticsService } from '../services/api'
+import { analyticsService, api } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
@@ -252,7 +252,7 @@ function PieChartComponent({ data }) {
 }
 
 function DashboardAnalytics() {
-  const { isPremium, venue } = useAuth()
+  const { isPremium, venue, updateVenue } = useAuth()
   const [period, setPeriod] = useState('month')
   
   // FREE tier data
@@ -268,6 +268,25 @@ function DashboardAnalytics() {
   const [benchmark, setBenchmark] = useState(null)
   const [loadingPremium, setLoadingPremium] = useState(true)
   const [errorPremium, setErrorPremium] = useState(null)
+
+  // Refresh venue data to get updated conversation count
+  useEffect(() => {
+    const refreshVenue = async () => {
+      if (venue?.id) {
+        try {
+          const { venueService } = await import('../services/api')
+          // Use the authenticated endpoint that includes stats
+          const response = await api.get(`/venues/${venue.id}`)
+          if (response.data && updateVenue) {
+            updateVenue(response.data)
+          }
+        } catch (error) {
+          console.error('[DashboardAnalytics] Error refreshing venue:', error)
+        }
+      }
+    }
+    refreshVenue()
+  }, [venue?.id, updateVenue])
 
   useEffect(() => {
     loadFreeData()
