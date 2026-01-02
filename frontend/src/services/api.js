@@ -37,6 +37,9 @@ api.interceptors.response.use(
   }
 )
 
+// Export api instance for direct use
+export { api }
+
 // Auth Service
 export const authService = {
   login: (email, password) => 

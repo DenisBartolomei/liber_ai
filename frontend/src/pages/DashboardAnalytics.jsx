@@ -274,7 +274,6 @@ function DashboardAnalytics() {
     const refreshVenue = async () => {
       if (venue?.id) {
         try {
-          const { venueService } = await import('../services/api')
           // Use the authenticated endpoint that includes stats
           const response = await api.get(`/venues/${venue.id}`)
           if (response.data && updateVenue) {
