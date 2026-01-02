@@ -89,8 +89,7 @@ def update_venue(venue_id):
     updatable_fields = [
         'name', 'description', 'cuisine_type', 'menu_style', 
         'preferences', 'target_audience', 'logo_url', 'primary_color',
-        'welcome_message', 'sommelier_style', 'is_onboarded',
-        'annual_conversation_limit'
+        'welcome_message', 'sommelier_style', 'is_onboarded'
     ]
     
     changes = {}

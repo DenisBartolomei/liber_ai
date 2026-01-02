@@ -252,7 +252,7 @@ function PieChartComponent({ data }) {
 }
 
 function DashboardAnalytics() {
-  const { isPremium } = useAuth()
+  const { isPremium, venue } = useAuth()
   const [period, setPeriod] = useState('month')
   
   // FREE tier data
@@ -400,6 +400,97 @@ function DashboardAnalytics() {
           </div>
         ) : (
           <>
+            {/* Annual Conversation Limit Card */}
+            {venue?.annual_conversation_limit !== undefined && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="card mb-6"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                      <MessageSquare className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-lg font-semibold text-burgundy-900">
+                        Limite Conversazioni Annuali
+                      </h3>
+                      <p className="text-sm text-burgundy-600">
+                        Utilizzo conversazioni B2C per anno solare
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {venue.annual_conversation_limit !== null ? (
+                  <>
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-burgundy-700">
+                          {venue.annual_conversation_count || 0} / {venue.annual_conversation_limit}
+                        </span>
+                        <span className="text-sm font-semibold text-burgundy-900">
+                          {Math.round(((venue.annual_conversation_count || 0) / venue.annual_conversation_limit) * 100)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-burgundy-100 rounded-full h-3 overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                              ? 'bg-red-500'
+                              : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                              ? 'bg-yellow-500'
+                              : 'bg-green-500'
+                          }`}
+                          style={{
+                            width: `${Math.min(100, ((venue.annual_conversation_count || 0) / venue.annual_conversation_limit) * 100)}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={`p-3 rounded-lg ${
+                      (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                        ? 'bg-red-50 border border-red-200'
+                        : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                        ? 'bg-yellow-50 border border-yellow-200'
+                        : 'bg-green-50 border border-green-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {((venue.annual_conversation_count || 0) >= venue.annual_conversation_limit) ? (
+                          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        ) : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8 ? (
+                          <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                        ) : (
+                          <Target className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        )}
+                        <p className={`text-sm font-medium ${
+                          (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                            ? 'text-red-900'
+                            : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                            ? 'text-yellow-900'
+                            : 'text-green-900'
+                        }`}>
+                          {(venue.annual_conversation_count || 0) >= venue.annual_conversation_limit
+                            ? 'Limite annuale raggiunto'
+                            : (venue.annual_conversation_count || 0) >= venue.annual_conversation_limit * 0.8
+                            ? 'Limite quasi raggiunto (80%+)'
+                            : 'Stato normale'}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-4 bg-cream-50 rounded-lg border border-burgundy-200">
+                    <p className="text-sm text-burgundy-600">
+                      Conversazioni illimitate per questo locale
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* Overview Stats Cards */}
             {overviewData && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
