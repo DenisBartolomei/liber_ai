@@ -233,7 +233,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowIdentityCard(false)}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 overflow-y-auto"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-start justify-center p-4 md:p-6 overflow-y-auto"
             >
               {/* Modal Content */}
               <motion.div
@@ -242,7 +242,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", damping: 25, stiffness: 300 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-full md:max-w-4xl mx-2 md:mx-4"
+                className="w-full max-w-full md:max-w-4xl"
               >
                 <WineIdentityCard
                   wine={wine}
