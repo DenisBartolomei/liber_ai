@@ -298,6 +298,16 @@ class FineTunedWineSelector:
             # Sort wines by rank (1, 2, 3, ...) to ensure correct order
             validated['wines'].sort(key=lambda w: w.get('rank', 999))
             
+            # Remove duplicates by ID (keep first occurrence with lower rank)
+            seen_ids = set()
+            unique_wines = []
+            for wine in validated['wines']:
+                wine_id = wine.get('id')
+                if wine_id and wine_id not in seen_ids:
+                    seen_ids.add(wine_id)
+                    unique_wines.append(wine)
+            validated['wines'] = unique_wines
+            
             # Log how many wines were ranked
             if len(validated['wines']) > 0:
                 logger.info(f"Single mode: Ranked {len(validated['wines'])} wines (rank 1 to {len(validated['wines'])})")

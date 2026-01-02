@@ -1032,16 +1032,6 @@ function CustomerChat() {
               <p className="text-xs text-cream-100/70">Il tuo sommelier personale</p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setFlowStep('dishes')
-              clearMessages()
-            }}
-            className="flex items-center gap-2 px-3 py-2 bg-burgundy-800 rounded-lg hover:bg-burgundy-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span className="text-sm">Ricomincia</span>
-          </button>
         </div>
       </header>
 
@@ -1130,10 +1120,10 @@ function CustomerChat() {
                             I miei consigli per voi
                           </p>
                           
-                          {/* All recommended wines - show all as selectable cards */}
+                          {/* All recommended wines - show all as selectable cards (max 3) */}
                           {message.wines.length > 0 && (
                             <div className="space-y-2 w-full overflow-x-hidden">
-                              {message.wines.map((wine, idx) => (
+                              {(message.wines || []).slice(0, 3).map((wine, idx) => (
                                 <div key={wine.id || idx} className="w-full">
                                   <WineCard 
                                     wine={wine} 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wine, MapPin, Grape, Calendar, Euro, Check, Info } from 'lucide-react'
+import { Wine, MapPin, Grape, Calendar, Euro, Check } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import WineIdentityCard from './WineIdentityCard'
 
@@ -126,11 +126,6 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
                 )}
               </div>
               <div className="flex items-center gap-2 mt-1">
-                {isBest && (
-                  <span className="px-2 py-0.5 bg-gold-500 text-burgundy-900 rounded-full text-xs font-semibold">
-                    Consiglio del Sommelier
-                  </span>
-                )}
                 <span className={`${getWineBadgeClass(wine.type)} inline-block`}>
                   {getWineTypeLabel(wine.type)}
                 </span>
@@ -140,10 +135,10 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
                       e.stopPropagation()
                       setShowIdentityCard(true)
                     }}
-                    className="ml-auto p-1.5 text-burgundy-500 hover:text-burgundy-700 hover:bg-burgundy-50 rounded-lg transition-all"
+                    className="ml-auto px-3 py-1.5 text-sm font-medium text-burgundy-700 bg-burgundy-50 hover:bg-burgundy-100 rounded-lg transition-colors"
                     title="Carta di identità del vino"
                   >
-                    <Info className="w-4 h-4" />
+                    Dettagli
                   </button>
                 )}
               </div>

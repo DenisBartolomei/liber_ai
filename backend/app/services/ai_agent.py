@@ -394,7 +394,7 @@ class AIAgentService:
             else:
                 # Single mode
                 all_ranked_wines = wine_selection.get('wines', [])
-                # First 3 wines for initial display
+                # First 3 wines for initial display (max 3)
                 wines_for_display = all_ranked_wines[:3]
                 wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
                 

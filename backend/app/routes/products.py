@@ -345,12 +345,16 @@ def delete_product(product_id):
     if product.venue_id != user.venue_id:
         return jsonify({'message': 'Non autorizzato'}), 403
     
+    # Delete associated wine proposals first (to avoid foreign key constraint issues)
+    from app.models import WineProposal
+    WineProposal.query.filter_by(product_id=product_id).delete()
+    
     # Remove from vector database
     try:
         vector_service = VectorSearchService()
         vector_service.delete_product(product)
     except Exception as e:
-        print(f"Error deleting product from vector DB: {e}")
+        logger.warning(f"Error deleting product from vector DB: {e}")
     
     db.session.delete(product)
     db.session.commit()
