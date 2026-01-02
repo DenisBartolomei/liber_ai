@@ -539,13 +539,13 @@ Devi restituire un JSON con questa struttura:
 
 IMPORTANTE: 
 - Devi rankare TUTTI i vini disponibili nella carta, non solo alcuni
-- Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino, budget)
+- Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino). Il budget è un fattore secondario - vini molto validi che superano leggermente il budget possono comunque essere promossi.
 - L'ultimo rank (N) è il vino meno adatto
 - Esattamente UN vino deve avere "rank": 1 e "best": true (il miglior consiglio)
 - Tutti gli altri devono avere "best": false
 - Ogni vino deve avere un "rank" numerico sequenziale (1, 2, 3, ..., N)
 - La "reason" deve spiegare il ranking: per vini in alto spiega perché si abbina bene, per vini in basso spiega perché è meno adatto
-- La carta è già filtrata per includere solo vini nel budget (budget - 20% a budget + 15%), quindi tutti i vini disponibili rispettano già il budget
+- La carta è già filtrata per includere solo vini nella fascia di prezzo appropriata. Il budget è un fattore secondario - la motivazione deve concentrarsi su qualità, abbinamenti e caratteristiche organolettiche, non sul prezzo.
 - NON saltare vini: ranka TUTTI i vini presenti nella lista"""
     
     prompt = f"""Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_name}.
@@ -585,16 +585,15 @@ IMPORTANTE:
    - Primi → vini versatili
    - MAI dessert wine con piatti salati
 
-5. **OTTIMIZZAZIONE RICAVO**: Proponi vini che si avvicinano al limite superiore del budget (se specificato), mantenendo sempre l'aderenza ai piatti.
+5. **OTTIMIZZAZIONE RICAVO**: Considera il budget come guida, ma privilegia sempre la qualità e l'affinità con i piatti. Vini eccellenti che superano leggermente il budget possono essere promossi nel ranking.
 
 6. **RANKING COMPLETO**:
-   - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N). Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino, budget). L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking.
+   - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N). Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino). Il budget è un fattore secondario - vini molto validi che superano leggermente il budget possono comunque essere promossi. L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking.
    - Percorso: ESATTAMENTE 2-3 percorsi, ognuno con esattamente {f"{bottles_count} vini" if journey_pref == 'journey' and bottles_count else "2-3 vini"} per percorso. NON generare più di 3 percorsi, NON generare meno di 2 percorsi.
 
 7. **BUDGET**: 
    - Se il budget è specificato, la carta è già filtrata per includere solo vini con prezzo tra (budget - 20%) e (budget + 15%).
-   - Tutti i vini disponibili rispettano già il budget, quindi puoi scegliere liberamente tra quelli proposti.
-   - Preferisci vini che si avvicinano al limite superiore del budget per ottimizzare il ricavo, mantenendo sempre l'affinità con le scelte del cliente.
+   - Tutti i vini disponibili sono nella fascia di prezzo appropriata. Il budget è un fattore secondario nel ranking - privilegia sempre la qualità, l'affinità con i piatti e le caratteristiche organolettiche. Vini molto validi che superano leggermente il budget (entro il range disponibile) possono essere promossi nel ranking e non devono essere penalizzati solo per il prezzo. La motivazione del ranking deve concentrarsi su qualità e abbinamenti, non sul budget.
 
 8. **VINI IN EVIDENZA (PRIORITÀ STRATEGICA)**: 
    {featured_wines_priority_text}

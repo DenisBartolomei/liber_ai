@@ -1448,9 +1448,7 @@ function CustomerChat() {
                 ...prev,
                 [modalMessageId]: wineId
               }))
-              setShowAllWinesModal(false)
-              setModalMessageId(null)
-              setModalWines([])
+              // Modal remains open so user can see selection and select another wine if needed
             }
           }}
           selectedWineId={modalMessageId ? selectedWineByMessage[modalMessageId] : null}
