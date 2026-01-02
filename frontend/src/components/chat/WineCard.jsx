@@ -72,9 +72,9 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
     <motion.div
       whileHover={onClick ? { scale: 1.01 } : {}}
       onClick={onClick}
-      className={cardClasses}
+      className={`${cardClasses} overflow-x-hidden`}
     >
-      <div className="flex gap-2 md:gap-4">
+      <div className="flex gap-2 md:gap-4 min-w-0">
         {/* Wine Image or Icon */}
         <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-burgundy-100">
           {(() => {
@@ -114,11 +114,11 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
         </div>
 
         {/* Wine Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-display font-semibold text-burgundy-900 leading-tight">
+        <div className="flex-1 min-w-0 overflow-x-hidden">
+          <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-display font-semibold text-burgundy-900 leading-tight break-words overflow-wrap-anywhere">
                   {wine.name}
                 </h3>
                 {selected && (
@@ -159,32 +159,32 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
           {/* Details */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-burgundy-600">
             {wine.region && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5" />
-                {wine.region}
+              <span className="flex items-center gap-1 break-words">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="break-words overflow-wrap-anywhere">{wine.region}</span>
               </span>
             )}
             {wine.grape_variety && (
-              <span className="flex items-center gap-1">
-                <Grape className="w-3.5 h-3.5" />
-                {wine.grape_variety}
+              <span className="flex items-center gap-1 break-words">
+                <Grape className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="break-words overflow-wrap-anywhere">{wine.grape_variety}</span>
               </span>
             )}
             {wine.vintage && (
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" />
-                {wine.vintage}
+              <span className="flex items-center gap-1 break-words">
+                <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="break-words overflow-wrap-anywhere">{wine.vintage}</span>
               </span>
             )}
           </div>
 
           {/* Reason (why this wine is recommended) */}
           {(showReason || expanded) && wine.reason && (
-            <div className="mt-3 p-3 bg-gold-50 border-l-4 border-gold-500 rounded-r">
+            <div className="mt-3 p-3 bg-gold-50 border-l-4 border-gold-500 rounded-r overflow-x-hidden">
               <p className="text-xs font-medium text-burgundy-700 uppercase tracking-wide mb-1">
                 Perché questo vino
               </p>
-              <p className="text-sm text-burgundy-700 leading-relaxed">
+              <p className="text-sm text-burgundy-700 leading-relaxed break-words overflow-wrap-anywhere">
                 {wine.reason}
               </p>
             </div>
@@ -192,18 +192,18 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
 
           {/* Description */}
           {(expanded || wine.description) && wine.description && (
-            <p className="mt-3 text-sm text-burgundy-700 leading-relaxed">
+            <p className="mt-3 text-sm text-burgundy-700 leading-relaxed break-words overflow-wrap-anywhere">
               {wine.description}
             </p>
           )}
 
           {/* Tasting Notes */}
           {expanded && wine.tasting_notes && (
-            <div className="mt-3 pt-3 border-t border-burgundy-100">
+            <div className="mt-3 pt-3 border-t border-burgundy-100 overflow-x-hidden">
               <p className="text-xs font-medium text-burgundy-500 uppercase tracking-wide mb-1">
                 Note di Degustazione
               </p>
-              <p className="text-sm text-burgundy-700">{wine.tasting_notes}</p>
+              <p className="text-sm text-burgundy-700 break-words overflow-wrap-anywhere">{wine.tasting_notes}</p>
             </div>
           )}
 

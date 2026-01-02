@@ -68,7 +68,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                     </div>
                   </div>
                 ) : wines && wines.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4 overflow-x-hidden">
                     {wines.map((wine, index) => {
                       const rank = wine.rank || (index + 1)
                       const isSelected = selectedWineId === wine.id
@@ -79,11 +79,11 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.05 }}
-                          className="relative"
+                          className="relative overflow-x-hidden"
                         >
-                          {/* Rank Badge */}
-                          <div className="absolute -top-2 -left-2 z-10">
-                            <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          {/* Rank Badge - Inline on mobile, absolute on desktop */}
+                          <div className="mb-2 md:absolute md:-top-2 md:-left-2 md:mb-0 z-10">
+                            <div className={`inline-block px-2 md:px-3 py-1 rounded-full text-xs font-bold ${
                               rank === 1
                                 ? 'bg-gold-500 text-burgundy-900'
                                 : 'bg-burgundy-700 text-cream-50'
@@ -99,7 +99,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                                 onSelectWine(wine.id)
                               }
                             }}
-                            className="cursor-pointer"
+                            className="cursor-pointer overflow-x-hidden"
                           >
                             <WineCard
                               wine={wine}
@@ -109,11 +109,11 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                             
                             {/* Motivation/Reason */}
                             {wine.reason && (
-                              <div className="mt-2 p-3 bg-burgundy-50 border-l-4 border-burgundy-300 rounded-r">
+                              <div className="mt-2 p-3 bg-burgundy-50 border-l-4 border-burgundy-300 rounded-r overflow-x-hidden">
                                 <p className="text-xs font-medium text-burgundy-700 uppercase tracking-wide mb-1">
                                   Motivazione
                                 </p>
-                                <p className="text-sm text-burgundy-800 leading-relaxed">
+                                <p className="text-sm text-burgundy-800 leading-relaxed break-words overflow-wrap-anywhere">
                                   {wine.reason}
                                 </p>
                               </div>
