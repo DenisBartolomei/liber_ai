@@ -591,28 +591,6 @@ function CustomerChat() {
                   Seleziona i piatti per ricevere l'abbinamento perfetto
                 </p>
 
-                {/* Selected dishes preview */}
-                {selectedDishes.length > 0 && (
-                  <div className="bg-gold-500/10 border border-gold-500/30 rounded-xl p-4 mb-6">
-                    <div className="flex flex-wrap gap-2">
-                      {selectedDishes.map(dish => (
-                        <span 
-                          key={dish.id}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-gold-500 text-burgundy-900 rounded-full text-sm font-medium"
-                        >
-                          {dish.name}
-                          <button 
-                            onClick={() => toggleDish(dish)}
-                            className="ml-1 hover:bg-burgundy-900/20 rounded-full p-0.5"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {/* Menu categories */}
                 <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                   {Object.entries(categoryLabels).map(([catKey, catLabel]) => {

@@ -93,7 +93,7 @@ class FineTunedWineSelector:
                 model=self.model,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent selections
-                max_completion_tokens=1200,  # Increased for more detailed JSON with better reasons
+                max_completion_tokens=4000,  # Increased to support ranking of all wines in large catalogs
                 response_format={"type": "json_object"}
             )
             
