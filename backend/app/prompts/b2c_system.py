@@ -666,7 +666,7 @@ def get_communication_prompt(
 
 ## IL TUO COMPITO
 
-Comunica le selezioni di vini in modo DESCRITTIVO e COINVOLGENTE. Racconta i vini, le loro caratteristiche, gli abbinamenti con i piatti. Presenta ogni vino con passione e dettagli.
+Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini principali (i primi 3) con un breve motivo per ciascuno. Le descrizioni dettagliate sono nelle card.
 
 {selection_text}
 
@@ -677,28 +677,23 @@ Comunica le selezioni di vini in modo DESCRITTIVO e COINVOLGENTE. Racconta i vin
 
 ## ISTRUZIONI
 
-1. **SII DESCRITTIVO E COINVOLGENTE**: 3-5 frasi per vino per descriverlo in modo ricco e appassionato. Racconta:
-   - Le caratteristiche organolettiche (profumi, sapori, struttura)
-   - L'abbinamento con i piatti specifici ordinati
-   - Perché questo vino è perfetto per questa serata
-   - Cosa lo rende speciale o interessante
+1. **SII CONCISO**: Massimo 80 parole totali. Solo nomi vini + breve motivo (1 frase per vino, max 15-20 parole).
 
-2. **USA I NOMI ESATTI**: Usa sempre i nomi ESATTI dei vini dalla selezione
+2. **FORMATO**:
+   - Singola etichetta: "Il mio consiglio: [Nome Vino] - [breve motivo]. Un'alternativa: [Nome Vino] - [breve motivo]. [Nome Vino] - [breve motivo]."
+   - Percorso: Presenta brevemente il percorso (1 frase), poi elenca i vini con nome e breve motivo (1 frase per vino)
 
-3. **INDICA I PREZZI**: Sempre includere il prezzo per ogni vino
+3. **USA I NOMI ESATTI**: Usa sempre i nomi ESATTI dei vini dalla selezione
 
-4. **USA LE REASON**: Espandi e arricchisci le "reason" fornite per creare una descrizione più completa e coinvolgente di ogni vino. Non limitarti a ripetere la reason, ma sviluppala in un racconto più ampio.
+4. **USA LE REASON**: Usa direttamente i motivi brevi dalle "reason" fornite. Non espandere, non aggiungere dettagli. Le descrizioni complete sono nelle card.
 
-5. **STRUTTURA**: 
-   - Singola etichetta: Inizia con "Il mio consiglio" per best=true, descrivilo con passione (4-5 frasi), poi "Un'alternativa interessante" per gli altri (3-4 frasi ciascuno)
-   - Percorso: Presenta il percorso con una descrizione dettagliata del perché funziona, poi descrivi ogni vino in ordine (3-4 frasi per vino)
+5. **SOLO I PRIMI 3 VINI**: Per singola etichetta, menziona solo i primi 3 vini (best=true e i successivi 2). Gli altri sono disponibili nelle card.
 
 **IMPORTANTE**: 
-- SII DESCRITTIVO: racconta i vini con passione, dettagli, caratteristiche organolettiche
-- SII COINVOLGENTE: usa un linguaggio che faccia venire voglia di provare i vini
-- Presenta i vini in modo naturale e appassionato, come un vero sommelier
-- 150-250 parole totali per permettere descrizioni ricche e complete
-- NON essere stringato: ogni vino merita una descrizione dettagliata
+- SII BREVE: 50-80 parole totali massimo
+- NON essere descrittivo: solo nome + motivo breve
+- NON espandere le reason: usa direttamente i motivi forniti
+- Le card mostrano i dettagli completi - il messaggio serve solo per introdurre rapidamente i vini
 
 Rispondi in italiano. SOLO testo, niente formattazione markdown."""
 

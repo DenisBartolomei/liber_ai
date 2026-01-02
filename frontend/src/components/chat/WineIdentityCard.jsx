@@ -106,6 +106,20 @@ function WineIdentityCard({ wine, onClose }) {
         </div>
       </div>
 
+      {/* Motivation/Reason Section */}
+      {wine.reason && (
+        <div className="px-4 md:px-6 pt-4 md:pt-6 pb-0 overflow-x-hidden">
+          <div className="bg-gold-50 border-l-4 border-gold-500 rounded-r-lg p-3 md:p-4">
+            <h3 className="text-xs md:text-sm font-semibold text-burgundy-900 uppercase tracking-wide mb-2">
+              Motivazione
+            </h3>
+            <p className="text-sm md:text-base text-burgundy-800 leading-relaxed break-words overflow-wrap-anywhere">
+              {wine.reason}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="p-4 md:p-6 overflow-x-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">

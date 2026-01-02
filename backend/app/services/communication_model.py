@@ -82,11 +82,11 @@ class CommunicationModelService:
         messages.append({"role": "user", "content": user_message})
         
         try:
-            # Call communication model - allow more descriptive responses
+            # Call communication model - concise responses only
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=800  # Increased for rich, descriptive responses
+                max_completion_tokens=200  # Concise responses: only wine names + brief reasons
             )
             
             message = response.choices[0].message.content
