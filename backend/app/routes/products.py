@@ -268,9 +268,11 @@ def parse_wine_csv(venue_id):
                 'found': list(csv_reader.fieldnames)
             }), 400
         
-        # Parse wines
-        wines = []
-        errors = []
+        # Parse wines and save to database
+        saved_products = []
+        parsing_errors = []
+        db_errors = []
+        saved_count = 0
         
         for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
             try:
@@ -281,17 +283,17 @@ def parse_wine_csv(venue_id):
                 
                 # Validate required fields
                 if not nome:
-                    errors.append({'row': row_num, 'error': 'Nome vino mancante'})
+                    parsing_errors.append({'row': row_num, 'error': 'Nome vino mancante'})
                     continue
                 
                 if not tipo:
-                    errors.append({'row': row_num, 'error': 'Tipo vino mancante'})
+                    parsing_errors.append({'row': row_num, 'error': 'Tipo vino mancante'})
                     continue
                 
                 # Validate wine type
                 valid_types = ['red', 'white', 'rose', 'sparkling', 'dessert', 'fortified']
                 if tipo not in valid_types:
-                    errors.append({
+                    parsing_errors.append({
                         'row': row_num, 
                         'error': f'Tipo vino non valido: {tipo}. Valori accettati: {", ".join(valid_types)}'
                     })
@@ -305,7 +307,7 @@ def parse_wine_csv(venue_id):
                     if prezzo <= 0:
                         raise ValueError('Prezzo deve essere positivo')
                 except (ValueError, AttributeError):
-                    errors.append({'row': row_num, 'error': f'Prezzo non valido: {prezzo_str}'})
+                    parsing_errors.append({'row': row_num, 'error': f'Prezzo non valido: {prezzo_str}'})
                     continue
                 
                 # Get optional fields
@@ -325,31 +327,84 @@ def parse_wine_csv(venue_id):
                     except (ValueError, TypeError):
                         pass  # Invalid year format, ignore
                 
-                wine = {
-                    'name': nome,
-                    'type': tipo,
-                    'price': prezzo,
-                    'region': regione,
-                    'grape_variety': vitigno,
-                    'vintage': anno,
-                    'producer': produttore
-                }
-                
-                wines.append(wine)
+                # Create and save product to database
+                try:
+                    product = Product(
+                        venue_id=venue_id,
+                        name=nome,
+                        type=tipo,
+                        price=prezzo,
+                        is_available=True
+                    )
+                    
+                    # Set optional fields only if they exist in the model
+                    if regione and hasattr(Product, 'region'):
+                        product.region = regione
+                    if vitigno and hasattr(Product, 'grape_variety'):
+                        product.grape_variety = vitigno
+                    if anno is not None and hasattr(Product, 'vintage'):
+                        product.vintage = anno
+                    if produttore and hasattr(Product, 'producer'):
+                        product.producer = produttore
+                    
+                    db.session.add(product)
+                    # Flush to get the ID before commit
+                    db.session.flush()
+                    saved_count += 1
+                    
+                    # Store product data for response (with ID to indicate it's saved)
+                    saved_products.append({
+                        'id': product.id,
+                        'name': nome,
+                        'type': tipo,
+                        'price': prezzo,
+                        'region': regione,
+                        'grape_variety': vitigno,
+                        'vintage': anno,
+                        'producer': produttore,
+                        'saved': True  # Flag to indicate already saved to DB
+                    })
+                    
+                except Exception as db_error:
+                    logger.error(f"Error saving product from row {row_num} ({nome}): {db_error}")
+                    db_errors.append({
+                        'row': row_num,
+                        'error': f'Errore salvataggio nel database: {str(db_error)}',
+                        'product': nome
+                    })
                 
             except Exception as e:
-                errors.append({'row': row_num, 'error': f'Errore parsing riga: {str(e)}'})
+                parsing_errors.append({'row': row_num, 'error': f'Errore parsing riga: {str(e)}'})
                 logger.error(f"Error parsing CSV row {row_num}: {e}")
         
-        if not wines and not errors:
+        # Commit all saved products to database
+        if saved_count > 0:
+            try:
+                db.session.commit()
+                logger.info(f"CSV import complete for venue {venue_id}: {saved_count} products saved, {len(parsing_errors)} parsing errors, {len(db_errors)} DB errors")
+            except Exception as commit_error:
+                db.session.rollback()
+                logger.error(f"Database commit failed for venue {venue_id}: {commit_error}")
+                return jsonify({
+                    'message': f'Errore durante il salvataggio nel database: {str(commit_error)}',
+                    'saved': 0,
+                    'errors': parsing_errors + db_errors
+                }), 500
+        
+        # Check if we have any results
+        if saved_count == 0 and len(parsing_errors) == 0 and len(db_errors) == 0:
             return jsonify({'message': 'Nessun vino trovato nel file CSV'}), 400
         
+        # Combine all errors
+        all_errors = parsing_errors + db_errors
+        
         return jsonify({
-            'message': f'{len(wines)} vini estratti dal CSV',
-            'wines': wines,
-            'errors': errors,
-            'total_rows': len(wines) + len(errors)
-        }), 200
+            'message': f'{saved_count} vini salvati nel database' if saved_count > 0 else 'Nessun vino salvato',
+            'saved': saved_count,
+            'wines': saved_products,
+            'errors': all_errors,
+            'total_rows': saved_count + len(all_errors)
+        }), 200 if saved_count > 0 else 400
         
     except Exception as e:
         logger.error(f"Error parsing CSV file: {e}")

@@ -67,11 +67,22 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
       setErrors(data.errors || [])
       
       if (data.wines && data.wines.length > 0) {
-        toast.success(`${data.wines.length} vini estratti dal CSV`)
+        const savedCount = data.saved || data.wines.length
+        toast.success(`${savedCount} vini salvati nel database${data.errors && data.errors.length > 0 ? `, ${data.errors.length} errori` : ''}`)
         onWinesParsed(data.wines)
+      } else if (data.saved === 0) {
+        // No wines saved
+        if (data.errors && data.errors.length > 0) {
+          toast.error(`Nessun vino salvato. ${data.errors.length} errori trovati nel CSV`, {
+            duration: 5000
+          })
+        } else {
+          toast.error('Nessun vino trovato nel CSV')
+        }
       }
 
-      if (data.errors && data.errors.length > 0) {
+      if (data.errors && data.errors.length > 0 && data.wines && data.wines.length > 0) {
+        // Show errors as warning if some wines were saved
         toast.error(`${data.errors.length} errori trovati nel CSV`, {
           duration: 5000
         })

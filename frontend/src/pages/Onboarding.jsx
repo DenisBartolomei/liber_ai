@@ -231,13 +231,18 @@ function Onboarding() {
         console.log('Menu items saved successfully')
       }
       
-      // Save wines with normalized data
+      // Save wines with normalized data (only if not already saved from CSV)
       const winesToSave = parsedWines
       const validWines = winesToSave.filter(wine => wine.name?.trim())
-      if (validWines.length > 0) {
+      
+      // Separate wines already saved from CSV (have 'saved' flag or 'id') from new ones
+      const alreadySavedWines = validWines.filter(wine => wine.saved || wine.id)
+      const newWines = validWines.filter(wine => !wine.saved && !wine.id)
+      
+      if (newWines.length > 0) {
         try {
           // Normalize wine data - ensure all required fields are present
-          const normalizedWines = validWines.map(wine => ({
+          const normalizedWines = newWines.map(wine => ({
             name: wine.name.trim(),
             type: wine.type || 'red',
             region: wine.region || null,
@@ -258,11 +263,11 @@ function Onboarding() {
             is_available: true
           }))
           
-          console.log('Saving wines:', normalizedWines.length, normalizedWines)
+          console.log('Saving new wines (not from CSV):', normalizedWines.length, normalizedWines)
           const importResponse = await productService.bulkImport(venue.id, normalizedWines)
           console.log('Wine import response:', importResponse.data)
           
-          // Upload label images if any wines have image_file
+          // Upload label images if any wines have image_file (both saved and new)
           const winesWithImages = validWines.filter(w => w.image_file)
           if (winesWithImages.length > 0) {
             // Get saved products to match by name and upload images
@@ -282,17 +287,22 @@ function Onboarding() {
             }
           }
           
-          // Sync to Qdrant
-          try {
-            await productService.syncVectorDB(venue.id)
-            console.log('Wines synced to vector DB')
-          } catch (e) {
-            console.warn('Vector sync error:', e)
-          }
         } catch (wineError) {
           console.error('Error saving wines:', wineError)
           toast.error(`Errore nel salvataggio vini: ${wineError.response?.data?.message || wineError.message}`)
           // Continue with onboarding even if wines fail
+        }
+      } else if (alreadySavedWines.length > 0) {
+        console.log(`${alreadySavedWines.length} wines already saved from CSV, skipping bulk import`)
+      }
+      
+      // Sync to Qdrant (for all wines, both from CSV and manually added)
+      if (validWines.length > 0) {
+        try {
+          await productService.syncVectorDB(venue.id)
+          console.log('Wines synced to vector DB')
+        } catch (e) {
+          console.warn('Vector sync error:', e)
         }
       }
 
