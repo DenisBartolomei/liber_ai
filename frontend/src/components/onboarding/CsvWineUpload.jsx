@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Upload, FileText, X, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { api } from '../../services/api'
 
 function CsvWineUpload({ onWinesParsed, venueId }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -39,29 +40,15 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const token = localStorage.getItem('token')
-       const response = await fetch(`/api/products/batch`, {
-        method: 'POST',
+      // Use api instance which handles VITE_API_URL correctly
+      const response = await api.post('/products/batch', formData, {
         headers: {
-          'Authorization': `Bearer ${token}`
           // Note: Do NOT set Content-Type header - browser sets it automatically for FormData
-        },
-        body: formData
+          // The api instance already adds Authorization header via interceptor
+        }
       })
 
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text()
-        console.error('Server returned non-JSON response:', text.substring(0, 200))
-        throw new Error(`Errore del server (${response.status}): La risposta non è in formato JSON`)
-      }
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.message || `Errore durante il parsing del CSV (${response.status})`)
-      }
+      const data = response.data
 
       setParsedWines(data.wines || [])
       setErrors(data.errors || [])
