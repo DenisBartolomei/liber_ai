@@ -19,6 +19,425 @@ logger = logging.getLogger(__name__)
 products_bp = Blueprint('products', __name__)
 
 
+# ===========================================
+# VENUE-SPECIFIC ROUTES (must be before generic /venue/<venue_identifier>)
+# ===========================================
+
+@products_bp.route('/venue/<int:venue_id>/bulk', methods=['POST'])
+@jwt_required()
+def bulk_import(venue_id):
+    """Bulk import products."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    logger.info(f"Bulk import request for venue {venue_id} by user {current_user_id}")
+    
+    if not user or user.venue_id != venue_id:
+        logger.warning(f"Unauthorized bulk import attempt: user {current_user_id} for venue {venue_id}")
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    data = request.get_json()
+    products_data = data.get('products', [])
+    
+    logger.info(f"Received {len(products_data)} products to import for venue {venue_id}")
+    
+    if not products_data:
+        logger.warning(f"Empty products list for venue {venue_id}")
+        return jsonify({'message': 'Nessun prodotto da importare'}), 400
+    
+    created_count = 0
+    errors = []
+    
+    for idx, p_data in enumerate(products_data):
+        try:
+            logger.debug(f"Creating product {idx}: {p_data.get('name')}")
+            product = Product(
+                venue_id=venue_id,
+                name=p_data.get('name'),
+                type=p_data.get('type', 'red'),
+                price=p_data.get('price', 0),
+                is_available=p_data.get('is_available', True)
+            )
+            
+            # Set optional fields only if they exist
+            if 'region' in p_data and hasattr(Product, 'region'):
+                product.region = p_data.get('region')
+            if 'grape_variety' in p_data and hasattr(Product, 'grape_variety'):
+                product.grape_variety = p_data.get('grape_variety')
+            if 'vintage' in p_data and hasattr(Product, 'vintage'):
+                product.vintage = p_data.get('vintage')
+            if 'description' in p_data and hasattr(Product, 'description'):
+                product.description = p_data.get('description')
+            db.session.add(product)
+            created_count += 1
+        except Exception as e:
+            logger.error(f"Error creating product {idx} ({p_data.get('name')}): {e}")
+            errors.append({'index': idx, 'error': str(e)})
+    
+    try:
+        db.session.commit()
+        logger.info(f"Bulk import complete for venue {venue_id}: {created_count} created, {len(errors)} errors")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Database commit failed for venue {venue_id}: {e}")
+        return jsonify({'message': f'Errore database: {str(e)}'}), 500
+    
+    return jsonify({
+        'message': f'{created_count} prodotti importati',
+        'created': created_count,
+        'errors': errors
+    }), 201
+
+
+@products_bp.route('/venue/<int:venue_id>/sync-vectors', methods=['POST'])
+@jwt_required()
+def sync_vectors(venue_id):
+    """Sync all products to vector database."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    products = Product.query.filter_by(venue_id=venue_id).all()
+    
+    try:
+        vector_service = VectorSearchService()
+        synced_count = vector_service.bulk_index(products)
+        
+        return jsonify({
+            'message': f'{synced_count} prodotti sincronizzati',
+            'synced': synced_count
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'message': f'Errore durante la sincronizzazione: {str(e)}'
+        }), 500
+
+
+@products_bp.route('/venue/<int:venue_id>/parse', methods=['POST'])
+@jwt_required()
+def parse_wine_list(venue_id):
+    """Parse wine list text and extract structured wine data using AI."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    data = request.get_json()
+    wine_text = data.get('wine_text', '')
+    
+    if not wine_text.strip():
+        return jsonify({'message': 'Testo della carta vini mancante'}), 400
+    
+    try:
+        parser = WineParserService()
+        wines = parser.parse_wine_list(wine_text)
+        
+        return jsonify({
+            'message': f'{len(wines)} vini estratti',
+            'wines': wines
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'message': f'Errore durante il parsing: {str(e)}'
+        }), 500
+
+
+@products_bp.route('/venue/<int:venue_id>/parse-images', methods=['POST'])
+@jwt_required()
+def parse_wine_images(venue_id):
+    """Parse wine list from images using GPT-4 Vision."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    data = request.get_json()
+    images = data.get('images', [])
+    
+    if not images:
+        return jsonify({'message': 'Nessuna immagine fornita'}), 400
+    
+    if len(images) > 10:
+        return jsonify({'message': 'Massimo 10 immagini consentite'}), 400
+    
+    logger.info(f"Parsing {len(images)} wine list images for venue {venue_id}")
+    
+    try:
+        parser = WineParserService()
+        wines = parser.parse_wine_images(images)
+        
+        logger.info(f"Extracted {len(wines)} wines from images for venue {venue_id}")
+        
+        return jsonify({
+            'message': f'{len(wines)} vini estratti dalle immagini',
+            'wines': wines
+        }), 200
+    except Exception as e:
+        logger.error(f"Error parsing wine images for venue {venue_id}: {e}")
+        return jsonify({
+            'message': f'Errore durante il parsing delle immagini: {str(e)}'
+        }), 500
+
+
+@products_bp.route('/venue/<int:venue_id>/clear', methods=['DELETE'])
+@jwt_required()
+def clear_products(venue_id):
+    """Clear all products for a venue."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    try:
+        # Delete all products for this venue
+        deleted_count = Product.query.filter_by(venue_id=venue_id).delete()
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'{deleted_count} prodotti eliminati',
+            'deleted': deleted_count
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'message': f'Errore durante l\'eliminazione: {str(e)}'
+        }), 500
+
+
+@products_bp.route('/venue/<int:venue_id>/parse-csv', methods=['POST'])
+@jwt_required()
+def parse_wine_csv(venue_id):
+    """
+    Parse CSV file with wine list and return structured data.
+    Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt)
+    """
+    logger.info(f"CSV parse request received for venue {venue_id}")
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        logger.warning(f"Unauthorized CSV parse attempt: user {current_user_id} for venue {venue_id}")
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    # Check if file is in request
+    if 'file' not in request.files:
+        return jsonify({'message': 'Nessun file fornito'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'message': 'Nessun file selezionato'}), 400
+    
+    if not file.filename.endswith('.csv'):
+        return jsonify({'message': 'Il file deve essere un CSV'}), 400
+    
+    try:
+        # Read CSV file
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        # Required columns
+        required_columns = ['nome', 'tipo', 'prezzo']
+        optional_columns = ['regione', 'vitigno', 'anno', 'produttore']
+        
+        # Validate header
+        if not csv_reader.fieldnames:
+            return jsonify({'message': 'File CSV vuoto o non valido'}), 400
+        
+        # Check for required columns (case insensitive)
+        fieldnames_lower = {f.lower(): f for f in csv_reader.fieldnames}
+        missing_columns = []
+        for req_col in required_columns:
+            if req_col.lower() not in fieldnames_lower:
+                missing_columns.append(req_col)
+        
+        if missing_columns:
+            return jsonify({
+                'message': f'Colonne obbligatorie mancanti: {", ".join(missing_columns)}',
+                'required': required_columns,
+                'found': list(csv_reader.fieldnames)
+            }), 400
+        
+        # Parse wines
+        wines = []
+        errors = []
+        
+        for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
+            try:
+                # Get values (case insensitive)
+                nome = row.get(fieldnames_lower.get('nome', 'nome'), '').strip()
+                tipo = row.get(fieldnames_lower.get('tipo', 'tipo'), '').strip().lower()
+                prezzo_str = row.get(fieldnames_lower.get('prezzo', 'prezzo'), '').strip()
+                
+                # Validate required fields
+                if not nome:
+                    errors.append({'row': row_num, 'error': 'Nome vino mancante'})
+                    continue
+                
+                if not tipo:
+                    errors.append({'row': row_num, 'error': 'Tipo vino mancante'})
+                    continue
+                
+                # Validate wine type
+                valid_types = ['red', 'white', 'rose', 'sparkling', 'dessert', 'fortified']
+                if tipo not in valid_types:
+                    errors.append({
+                        'row': row_num, 
+                        'error': f'Tipo vino non valido: {tipo}. Valori accettati: {", ".join(valid_types)}'
+                    })
+                    continue
+                
+                # Parse price
+                try:
+                    # Remove currency symbols and spaces
+                    prezzo_clean = prezzo_str.replace('€', '').replace('$', '').replace(',', '.').strip()
+                    prezzo = float(prezzo_clean)
+                    if prezzo <= 0:
+                        raise ValueError('Prezzo deve essere positivo')
+                except (ValueError, AttributeError):
+                    errors.append({'row': row_num, 'error': f'Prezzo non valido: {prezzo_str}'})
+                    continue
+                
+                # Get optional fields
+                regione = row.get(fieldnames_lower.get('regione', 'regione'), '').strip() or None
+                vitigno = row.get(fieldnames_lower.get('vitigno', 'vitigno'), '').strip() or None
+                anno_str = row.get(fieldnames_lower.get('anno', 'anno'), '').strip() or None
+                produttore = row.get(fieldnames_lower.get('produttore', 'produttore'), '').strip() or None
+                
+                # Parse vintage
+                anno = None
+                if anno_str:
+                    try:
+                        anno = int(anno_str)
+                        # Basic validation for reasonable years
+                        if anno < 1900 or anno > 2100:
+                            anno = None  # Invalid year, ignore
+                    except (ValueError, TypeError):
+                        pass  # Invalid year format, ignore
+                
+                wine = {
+                    'name': nome,
+                    'type': tipo,
+                    'price': prezzo,
+                    'region': regione,
+                    'grape_variety': vitigno,
+                    'vintage': anno,
+                    'producer': produttore
+                }
+                
+                wines.append(wine)
+                
+            except Exception as e:
+                errors.append({'row': row_num, 'error': f'Errore parsing riga: {str(e)}'})
+                logger.error(f"Error parsing CSV row {row_num}: {e}")
+        
+        if not wines and not errors:
+            return jsonify({'message': 'Nessun vino trovato nel file CSV'}), 400
+        
+        return jsonify({
+            'message': f'{len(wines)} vini estratti dal CSV',
+            'wines': wines,
+            'errors': errors,
+            'total_rows': len(wines) + len(errors)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error parsing CSV file: {e}")
+        return jsonify({
+            'message': f'Errore durante il parsing del CSV: {str(e)}'
+        }), 500
+
+
+@products_bp.route('/venue/<int:venue_id>/generate-descriptions', methods=['POST'])
+@jwt_required()
+def generate_wine_descriptions(venue_id):
+    """
+    Generate professional wine descriptions using fine-tuned GPT model.
+    Accepts list of wines with basic info, returns wines with generated descriptions.
+    """
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    
+    if not user or user.venue_id != venue_id:
+        return jsonify({'message': 'Non autorizzato'}), 403
+    
+    data = request.get_json()
+    wines = data.get('wines', [])
+    
+    if not wines:
+        return jsonify({'message': 'Nessun vino fornito'}), 400
+    
+    if not isinstance(wines, list):
+        return jsonify({'message': 'wines deve essere un array'}), 400
+    
+    # Validate wines structure
+    for wine in wines:
+        if not wine.get('name') or not wine.get('type'):
+            return jsonify({
+                'message': 'Ogni vino deve avere almeno nome e tipo'
+            }), 400
+    
+    try:
+        generator = WineDescriptionGenerator()
+        wines_with_descriptions = generator.generate_descriptions_batch(wines)
+        
+        # Save structured data to database if wines have IDs (already saved)
+        # Otherwise, return data for frontend to save later
+        wines_to_save = []
+        for wine_data in wines_with_descriptions:
+            if wine_data.get('description_status') == 'completed' and wine_data.get('id'):
+                # Wine already exists, update it
+                try:
+                    product = Product.query.get(wine_data['id'])
+                    if product and product.venue_id == venue_id:
+                        if 'description' in wine_data:
+                            product.description = wine_data.get('description')
+                        if 'color' in wine_data:
+                            product.color = wine_data.get('color')
+                        if 'aromas' in wine_data:
+                            product.aromas = wine_data.get('aromas')
+                        if 'body' in wine_data and wine_data.get('body') is not None:
+                            product.body = wine_data.get('body')
+                        if 'acidity_level' in wine_data and wine_data.get('acidity_level') is not None:
+                            product.acidity_level = wine_data.get('acidity_level')
+                        if 'tannin_level' in wine_data and wine_data.get('tannin_level') is not None:
+                            product.tannin_level = wine_data.get('tannin_level')
+                        wines_to_save.append(product)
+                except Exception as e:
+                    logger.error(f"Error updating product {wine_data.get('id')}: {e}")
+        
+        if wines_to_save:
+            db.session.commit()
+        
+        # Count success/errors
+        completed = sum(1 for w in wines_with_descriptions if w.get('description_status') == 'completed')
+        errors = sum(1 for w in wines_with_descriptions if w.get('description_status') == 'error')
+        
+        return jsonify({
+            'message': f'Descrizioni generate: {completed} completate, {errors} errori',
+            'wines': wines_with_descriptions,
+            'stats': {
+                'total': len(wines_with_descriptions),
+                'completed': completed,
+                'errors': errors
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error generating wine descriptions: {e}")
+        return jsonify({
+            'message': f'Errore durante la generazione delle descrizioni: {str(e)}'
+        }), 500
+
+
+# ===========================================
+# GENERIC VENUE ROUTE (must be after specific routes)
+# ===========================================
+
 @products_bp.route('/venue/<venue_identifier>', methods=['GET'])
 def get_products(venue_identifier):
     """
@@ -360,415 +779,6 @@ def delete_product(product_id):
     db.session.commit()
     
     return jsonify({'message': 'Prodotto eliminato'}), 200
-
-
-@products_bp.route('/venue/<int:venue_id>/bulk', methods=['POST'])
-@jwt_required()
-def bulk_import(venue_id):
-    """Bulk import products."""
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    logger.info(f"Bulk import request for venue {venue_id} by user {current_user_id}")
-    
-    if not user or user.venue_id != venue_id:
-        logger.warning(f"Unauthorized bulk import attempt: user {current_user_id} for venue {venue_id}")
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    data = request.get_json()
-    products_data = data.get('products', [])
-    
-    logger.info(f"Received {len(products_data)} products to import for venue {venue_id}")
-    
-    if not products_data:
-        logger.warning(f"Empty products list for venue {venue_id}")
-        return jsonify({'message': 'Nessun prodotto da importare'}), 400
-    
-    created_count = 0
-    errors = []
-    
-    for idx, p_data in enumerate(products_data):
-        try:
-            logger.debug(f"Creating product {idx}: {p_data.get('name')}")
-            product = Product(
-                venue_id=venue_id,
-                name=p_data.get('name'),
-                type=p_data.get('type', 'red'),
-                price=p_data.get('price', 0),
-                is_available=p_data.get('is_available', True)
-            )
-            
-            # Set optional fields only if they exist
-            if 'region' in p_data and hasattr(Product, 'region'):
-                product.region = p_data.get('region')
-            if 'grape_variety' in p_data and hasattr(Product, 'grape_variety'):
-                product.grape_variety = p_data.get('grape_variety')
-            if 'vintage' in p_data and hasattr(Product, 'vintage'):
-                product.vintage = p_data.get('vintage')
-            if 'description' in p_data and hasattr(Product, 'description'):
-                product.description = p_data.get('description')
-            db.session.add(product)
-            created_count += 1
-        except Exception as e:
-            logger.error(f"Error creating product {idx} ({p_data.get('name')}): {e}")
-            errors.append({'index': idx, 'error': str(e)})
-    
-    try:
-        db.session.commit()
-        logger.info(f"Bulk import complete for venue {venue_id}: {created_count} created, {len(errors)} errors")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Database commit failed for venue {venue_id}: {e}")
-        return jsonify({'message': f'Errore database: {str(e)}'}), 500
-    
-    return jsonify({
-        'message': f'{created_count} prodotti importati',
-        'created': created_count,
-        'errors': errors
-    }), 201
-
-
-@products_bp.route('/venue/<int:venue_id>/sync-vectors', methods=['POST'])
-@jwt_required()
-def sync_vectors(venue_id):
-    """Sync all products to vector database."""
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    products = Product.query.filter_by(venue_id=venue_id).all()
-    
-    try:
-        vector_service = VectorSearchService()
-        synced_count = vector_service.bulk_index(products)
-        
-        return jsonify({
-            'message': f'{synced_count} prodotti sincronizzati',
-            'synced': synced_count
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'message': f'Errore durante la sincronizzazione: {str(e)}'
-        }), 500
-
-
-@products_bp.route('/venue/<int:venue_id>/parse', methods=['POST'])
-@jwt_required()
-def parse_wine_list(venue_id):
-    """Parse wine list text and extract structured wine data using AI."""
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    data = request.get_json()
-    wine_text = data.get('wine_text', '')
-    
-    if not wine_text.strip():
-        return jsonify({'message': 'Testo della carta vini mancante'}), 400
-    
-    try:
-        parser = WineParserService()
-        wines = parser.parse_wine_list(wine_text)
-        
-        return jsonify({
-            'message': f'{len(wines)} vini estratti',
-            'wines': wines
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'message': f'Errore durante il parsing: {str(e)}'
-        }), 500
-
-
-@products_bp.route('/venue/<int:venue_id>/parse-images', methods=['POST'])
-@jwt_required()
-def parse_wine_images(venue_id):
-    """Parse wine list from images using GPT-4 Vision."""
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    data = request.get_json()
-    images = data.get('images', [])
-    
-    if not images:
-        return jsonify({'message': 'Nessuna immagine fornita'}), 400
-    
-    if len(images) > 10:
-        return jsonify({'message': 'Massimo 10 immagini consentite'}), 400
-    
-    logger.info(f"Parsing {len(images)} wine list images for venue {venue_id}")
-    
-    try:
-        parser = WineParserService()
-        wines = parser.parse_wine_images(images)
-        
-        logger.info(f"Extracted {len(wines)} wines from images for venue {venue_id}")
-        
-        return jsonify({
-            'message': f'{len(wines)} vini estratti dalle immagini',
-            'wines': wines
-        }), 200
-    except Exception as e:
-        logger.error(f"Error parsing wine images for venue {venue_id}: {e}")
-        return jsonify({
-            'message': f'Errore durante il parsing delle immagini: {str(e)}'
-        }), 500
-
-
-@products_bp.route('/venue/<int:venue_id>/clear', methods=['DELETE'])
-@jwt_required()
-def clear_products(venue_id):
-    """Clear all products for a venue."""
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    try:
-        # Delete all products for this venue
-        deleted_count = Product.query.filter_by(venue_id=venue_id).delete()
-        db.session.commit()
-        
-        return jsonify({
-            'message': f'{deleted_count} prodotti eliminati',
-            'deleted': deleted_count
-        }), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'message': f'Errore durante l\'eliminazione: {str(e)}'
-        }), 500
-
-
-@products_bp.route('/venue/<int:venue_id>/parse-csv', methods=['POST'])
-@jwt_required()
-def parse_wine_csv(venue_id):
-    """
-    Parse CSV file with wine list and return structured data.
-    Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt)
-    """
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    # Check if file is in request
-    if 'file' not in request.files:
-        return jsonify({'message': 'Nessun file fornito'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'message': 'Nessun file selezionato'}), 400
-    
-    if not file.filename.endswith('.csv'):
-        return jsonify({'message': 'Il file deve essere un CSV'}), 400
-    
-    try:
-        # Read CSV file
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-        csv_reader = csv.DictReader(stream)
-        
-        # Required columns
-        required_columns = ['nome', 'tipo', 'prezzo']
-        optional_columns = ['regione', 'vitigno', 'anno', 'produttore']
-        
-        # Validate header
-        if not csv_reader.fieldnames:
-            return jsonify({'message': 'File CSV vuoto o non valido'}), 400
-        
-        # Check for required columns (case insensitive)
-        fieldnames_lower = {f.lower(): f for f in csv_reader.fieldnames}
-        missing_columns = []
-        for req_col in required_columns:
-            if req_col.lower() not in fieldnames_lower:
-                missing_columns.append(req_col)
-        
-        if missing_columns:
-            return jsonify({
-                'message': f'Colonne obbligatorie mancanti: {", ".join(missing_columns)}',
-                'required': required_columns,
-                'found': list(csv_reader.fieldnames)
-            }), 400
-        
-        # Parse wines
-        wines = []
-        errors = []
-        
-        for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
-            try:
-                # Get values (case insensitive)
-                nome = row.get(fieldnames_lower.get('nome', 'nome'), '').strip()
-                tipo = row.get(fieldnames_lower.get('tipo', 'tipo'), '').strip().lower()
-                prezzo_str = row.get(fieldnames_lower.get('prezzo', 'prezzo'), '').strip()
-                
-                # Validate required fields
-                if not nome:
-                    errors.append({'row': row_num, 'error': 'Nome vino mancante'})
-                    continue
-                
-                if not tipo:
-                    errors.append({'row': row_num, 'error': 'Tipo vino mancante'})
-                    continue
-                
-                # Validate wine type
-                valid_types = ['red', 'white', 'rose', 'sparkling', 'dessert', 'fortified']
-                if tipo not in valid_types:
-                    errors.append({
-                        'row': row_num, 
-                        'error': f'Tipo vino non valido: {tipo}. Valori accettati: {", ".join(valid_types)}'
-                    })
-                    continue
-                
-                # Parse price
-                try:
-                    # Remove currency symbols and spaces
-                    prezzo_clean = prezzo_str.replace('€', '').replace('$', '').replace(',', '.').strip()
-                    prezzo = float(prezzo_clean)
-                    if prezzo <= 0:
-                        raise ValueError('Prezzo deve essere positivo')
-                except (ValueError, AttributeError):
-                    errors.append({'row': row_num, 'error': f'Prezzo non valido: {prezzo_str}'})
-                    continue
-                
-                # Get optional fields
-                regione = row.get(fieldnames_lower.get('regione', 'regione'), '').strip() or None
-                vitigno = row.get(fieldnames_lower.get('vitigno', 'vitigno'), '').strip() or None
-                anno_str = row.get(fieldnames_lower.get('anno', 'anno'), '').strip() or None
-                produttore = row.get(fieldnames_lower.get('produttore', 'produttore'), '').strip() or None
-                
-                # Parse vintage
-                anno = None
-                if anno_str:
-                    try:
-                        anno = int(anno_str)
-                        # Basic validation for reasonable years
-                        if anno < 1900 or anno > 2100:
-                            anno = None  # Invalid year, ignore
-                    except (ValueError, TypeError):
-                        pass  # Invalid year format, ignore
-                
-                wine = {
-                    'name': nome,
-                    'type': tipo,
-                    'price': prezzo,
-                    'region': regione,
-                    'grape_variety': vitigno,
-                    'vintage': anno,
-                    'producer': produttore
-                }
-                
-                wines.append(wine)
-                
-            except Exception as e:
-                errors.append({'row': row_num, 'error': f'Errore parsing riga: {str(e)}'})
-                logger.error(f"Error parsing CSV row {row_num}: {e}")
-        
-        if not wines and not errors:
-            return jsonify({'message': 'Nessun vino trovato nel file CSV'}), 400
-        
-        return jsonify({
-            'message': f'{len(wines)} vini estratti dal CSV',
-            'wines': wines,
-            'errors': errors,
-            'total_rows': len(wines) + len(errors)
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error parsing CSV file: {e}")
-        return jsonify({
-            'message': f'Errore durante il parsing del CSV: {str(e)}'
-        }), 500
-
-
-@products_bp.route('/venue/<int:venue_id>/generate-descriptions', methods=['POST'])
-@jwt_required()
-def generate_wine_descriptions(venue_id):
-    """
-    Generate professional wine descriptions using fine-tuned GPT model.
-    Accepts list of wines with basic info, returns wines with generated descriptions.
-    """
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    
-    if not user or user.venue_id != venue_id:
-        return jsonify({'message': 'Non autorizzato'}), 403
-    
-    data = request.get_json()
-    wines = data.get('wines', [])
-    
-    if not wines:
-        return jsonify({'message': 'Nessun vino fornito'}), 400
-    
-    if not isinstance(wines, list):
-        return jsonify({'message': 'wines deve essere un array'}), 400
-    
-    # Validate wines structure
-    for wine in wines:
-        if not wine.get('name') or not wine.get('type'):
-            return jsonify({
-                'message': 'Ogni vino deve avere almeno nome e tipo'
-            }), 400
-    
-    try:
-        generator = WineDescriptionGenerator()
-        wines_with_descriptions = generator.generate_descriptions_batch(wines)
-        
-        # Save structured data to database if wines have IDs (already saved)
-        # Otherwise, return data for frontend to save later
-        wines_to_save = []
-        for wine_data in wines_with_descriptions:
-            if wine_data.get('description_status') == 'completed' and wine_data.get('id'):
-                # Wine already exists, update it
-                try:
-                    product = Product.query.get(wine_data['id'])
-                    if product and product.venue_id == venue_id:
-                        if 'description' in wine_data:
-                            product.description = wine_data.get('description')
-                        if 'color' in wine_data:
-                            product.color = wine_data.get('color')
-                        if 'aromas' in wine_data:
-                            product.aromas = wine_data.get('aromas')
-                        if 'body' in wine_data and wine_data.get('body') is not None:
-                            product.body = wine_data.get('body')
-                        if 'acidity_level' in wine_data and wine_data.get('acidity_level') is not None:
-                            product.acidity_level = wine_data.get('acidity_level')
-                        if 'tannin_level' in wine_data and wine_data.get('tannin_level') is not None:
-                            product.tannin_level = wine_data.get('tannin_level')
-                        wines_to_save.append(product)
-                except Exception as e:
-                    logger.error(f"Error updating product {wine_data.get('id')}: {e}")
-        
-        if wines_to_save:
-            db.session.commit()
-        
-        # Count success/errors
-        completed = sum(1 for w in wines_with_descriptions if w.get('description_status') == 'completed')
-        errors = sum(1 for w in wines_with_descriptions if w.get('description_status') == 'error')
-        
-        return jsonify({
-            'message': f'Descrizioni generate: {completed} completate, {errors} errori',
-            'wines': wines_with_descriptions,
-            'stats': {
-                'total': len(wines_with_descriptions),
-                'completed': completed,
-                'errors': errors
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error generating wine descriptions: {e}")
-        return jsonify({
-            'message': f'Errore durante la generazione delle descrizioni: {str(e)}'
-        }), 500
 
 
 @products_bp.route('/<int:product_id>/label-image', methods=['POST'])

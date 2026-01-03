@@ -44,14 +44,23 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
+          // Note: Do NOT set Content-Type header - browser sets it automatically for FormData
         },
         body: formData
       })
 
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text()
+        console.error('Server returned non-JSON response:', text.substring(0, 200))
+        throw new Error(`Errore del server (${response.status}): La risposta non è in formato JSON`)
+      }
+
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || 'Errore durante il parsing del CSV')
+        throw new Error(data.message || `Errore durante il parsing del CSV (${response.status})`)
       }
 
       setParsedWines(data.wines || [])
