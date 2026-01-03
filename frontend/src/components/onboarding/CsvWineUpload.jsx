@@ -41,10 +41,10 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
       formData.append('file', file)
 
       // Use api instance which handles VITE_API_URL correctly
+      // IMPORTANT: Remove Content-Type header for FormData - browser sets it automatically with boundary
       const response = await api.post('/products/batch', formData, {
         headers: {
-          // Note: Do NOT set Content-Type header - browser sets it automatically for FormData
-          // The api instance already adds Authorization header via interceptor
+          'Content-Type': undefined  // Remove default Content-Type to let browser set multipart/form-data
         }
       })
 
