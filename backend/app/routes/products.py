@@ -209,15 +209,14 @@ def clear_products(venue_id):
         }), 500
 
 
-@products_bp.route('/parse-csv/<int:venue_id>', methods=['POST'])
+@products_bp.route('/csv-upload', methods=['POST'])
 @jwt_required()
-def parse_wine_csv(venue_id):
+def parse_wine_csv():
     """
-    Parse CSV file with wine list and return structured data.
+    Parse CSV file with wine list and save to database.
     Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt)
     """
     logger.info(f"=== CSV PARSE REQUEST ===")
-    logger.info(f"Venue ID: {venue_id}")
     logger.info(f"Method: {request.method}")
     logger.info(f"Content-Type: {request.content_type}")
     logger.info(f"Files in request: {list(request.files.keys())}")
@@ -225,9 +224,12 @@ def parse_wine_csv(venue_id):
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
     
-    if not user or user.venue_id != venue_id:
-        logger.warning(f"Unauthorized CSV parse attempt: user {current_user_id} for venue {venue_id}")
+    if not user:
+        logger.warning(f"Unauthorized CSV parse attempt: user {current_user_id}")
         return jsonify({'message': 'Non autorizzato'}), 403
+    
+    venue_id = user.venue_id
+    logger.info(f"Venue ID from user: {venue_id}")
     
     # Check if file is in request
     if 'file' not in request.files:
