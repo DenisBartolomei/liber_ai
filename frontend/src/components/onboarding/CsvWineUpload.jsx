@@ -40,7 +40,7 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
       formData.append('file', file)
 
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/products/venue/${venueId}/parse-csv`, {
+      const response = await fetch(`/api/products/parse-csv/${venueId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

@@ -209,14 +209,19 @@ def clear_products(venue_id):
         }), 500
 
 
-@products_bp.route('/venue/<int:venue_id>/parse-csv', methods=['POST'])
+@products_bp.route('/parse-csv/<int:venue_id>', methods=['POST'])
 @jwt_required()
 def parse_wine_csv(venue_id):
     """
     Parse CSV file with wine list and return structured data.
     Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt)
     """
-    logger.info(f"CSV parse request received for venue {venue_id}")
+    logger.info(f"=== CSV PARSE REQUEST ===")
+    logger.info(f"Venue ID: {venue_id}")
+    logger.info(f"Method: {request.method}")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Files in request: {list(request.files.keys())}")
+    
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
     
@@ -226,6 +231,7 @@ def parse_wine_csv(venue_id):
     
     # Check if file is in request
     if 'file' not in request.files:
+        logger.error(f"No 'file' in request.files. Available keys: {list(request.files.keys())}")
         return jsonify({'message': 'Nessun file fornito'}), 400
     
     file = request.files['file']
