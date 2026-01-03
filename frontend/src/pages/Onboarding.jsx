@@ -12,7 +12,8 @@ import {
   Edit3,
   Plus,
   Save,
-  Wine
+  Wine,
+  Sparkles
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { venueService, menuService, productService } from '../services/api'
