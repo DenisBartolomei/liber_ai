@@ -209,7 +209,7 @@ def clear_products(venue_id):
         }), 500
 
 
-@products_bp.route('/csv-upload', methods=['POST'])
+@products_bp.route('/batch', methods=['POST'])
 @jwt_required()
 def parse_wine_csv():
     """
