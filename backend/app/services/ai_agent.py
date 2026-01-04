@@ -249,7 +249,7 @@ class AIAgentService:
         if wine_type_pref and wine_type_pref != 'any':
             query = query.filter_by(type=wine_type_pref)
         
-        # Filter by budget (budget - 20% to budget + 15%)
+        # Filter by budget (0 to budget + 15%)
         budget_max = None
         if budget_pref and budget_pref != 'nolimit':
             if isinstance(budget_pref, (int, float)):
@@ -260,9 +260,8 @@ class AIAgentService:
                 budget_max = 40.0
             
             if budget_max:
-                min_price = budget_max * 0.80  # budget - 20%
                 max_price = budget_max * 1.15  # budget + 15%
-                query = query.filter(Product.price >= min_price, Product.price <= max_price)
+                query = query.filter(Product.price <= max_price)
         
         # Use load_only to select only core columns that exist in all databases
         # This avoids errors if optional columns (color, aromas, etc.) don't exist
@@ -285,9 +284,8 @@ class AIAgentService:
         # Convert to dict format
         all_wines = [p.to_dict() for p in all_products]
         if budget_max:
-            min_price = budget_max * 0.80
             max_price = budget_max * 1.15
-            logger.info(f"Filtered wines: type={wine_type_pref}, budget_range=€{min_price:.2f}-€{max_price:.2f} (budget €{budget_max:.2f} ±20%/+15%), result={len(all_wines)} wines from venue {venue.id}")
+            logger.info(f"Filtered wines: type={wine_type_pref}, budget_range=€0.00-€{max_price:.2f} (budget €{budget_max:.2f} +15%), result={len(all_wines)} wines from venue {venue.id}")
         else:
             logger.info(f"Filtered wines: type={wine_type_pref}, budget_max=none, result={len(all_wines)} wines from venue {venue.id}")
         
@@ -954,7 +952,7 @@ class AIAgentService:
         return unique_wines
     
     def _build_wines_context(self, wines: List[Dict]) -> str:
-        """Build a text context of wines for the GPT prompt - ONLY name, type, price."""
+        """Build a text context of wines for the GPT prompt - includes name, type, price, grape_variety, and description."""
         if not wines:
             return "⚠️ ATTENZIONE: La carta è vuota o non ci sono vini disponibili. DEVI comunque cercare di aiutare il cliente. Suggerisci di consultare la carta fisica del ristorante, ma mantieni un tono accogliente e professionale."
         
@@ -963,8 +961,18 @@ class AIAgentService:
             name = wine.get('name', 'N/D')
             wine_type = wine.get('type', 'N/D')
             price = wine.get('price', 'N/D')
+            grape_variety = wine.get('grape_variety', '')
+            description = wine.get('description', '')
             
-            context_parts.append(f"{idx}. {name} | {wine_type} | €{price}")
+            wine_line = f"{idx}. {name} | {wine_type} | €{price}"
+            
+            if grape_variety:
+                wine_line += f" | Uvaggio: {grape_variety}"
+            
+            if description:
+                wine_line += f" | Descrizione: {description}"
+            
+            context_parts.append(wine_line)
         
         return "\n".join(context_parts)
     

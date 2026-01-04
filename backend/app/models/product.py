@@ -135,6 +135,17 @@ class Product(db.Model):
             f"Tipo: {self.type}" if self.type else "",
             f"Prezzo: €{self.price}" if self.price else ""
         ]
+        
+        # Add grape variety if available
+        grape_variety = getattr(self, 'grape_variety', None)
+        if grape_variety:
+            parts.append(f"Uvaggio: {grape_variety}")
+        
+        # Add description if available
+        description = getattr(self, 'description', None)
+        if description:
+            parts.append(f"Descrizione: {description}")
+        
         return " | ".join([p for p in parts if p])
 
 

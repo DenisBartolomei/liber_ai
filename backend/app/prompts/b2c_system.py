@@ -213,9 +213,8 @@ def get_b2c_system_prompt(
         preferences_context += "- Budget: Nessuna restrizione\n"
     elif isinstance(budget, (int, float)):
         budget_max = float(budget)
-        min_price = budget_max * 0.80  # budget - 20%
         max_price = budget_max * 1.15  # budget + 15%
-        preferences_context += f"- Budget: Massimo €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini tra €{min_price:.2f} e €{max_price:.2f})\n"
+        preferences_context += f"- Budget: Massimo €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini fino a €{max_price:.2f})\n"
     
     # Format instructions
     if journey_pref == 'journey':
@@ -419,9 +418,8 @@ IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati,
         budget_text = "Nessuna restrizione di budget. Ottimizza il ricavo proponendo vini di qualità."
     elif isinstance(budget, (int, float)):
         budget_max = float(budget)
-        min_price = budget_max * 0.80  # budget - 20%
         max_price = budget_max * 1.15  # budget + 15%
-        budget_text = f"Budget massimo: €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini tra €{min_price:.2f} e €{max_price:.2f})."
+        budget_text = f"Budget massimo: €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini fino a €{max_price:.2f})."
     else:
         budget_labels = {
             'base': 'Budget base: fino a €20 per bottiglia',
@@ -435,14 +433,12 @@ IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati,
         if journey_pref == 'single':
             if budget == 'base' or budget == 'low':
                 budget_max = 20.0
-                min_price = budget_max * 0.80  # 16.0
                 max_price = budget_max * 1.15  # 23.0
-                budget_text += f" La carta è già filtrata per includere vini tra €{min_price:.2f} e €{max_price:.2f}."
+                budget_text += f" La carta è già filtrata per includere vini fino a €{max_price:.2f}."
             elif budget == 'spinto' or budget == 'medium':
                 budget_max = 40.0
-                min_price = budget_max * 0.80  # 32.0
                 max_price = budget_max * 1.15  # 46.0
-                budget_text += f" La carta è già filtrata per includere vini tra €{min_price:.2f} e €{max_price:.2f}."
+                budget_text += f" La carta è già filtrata per includere vini fino a €{max_price:.2f}."
     
     # Determine output format
     if journey_pref == 'journey':
@@ -585,6 +581,12 @@ IMPORTANTE:
    - Primi → vini versatili
    - MAI dessert wine con piatti salati
 
+5. **RISPETTA LA DESCRIZIONE E L'UVAGGIO**: 
+   - Quando un vino ha una "Descrizione" nella carta, DEVI rispettarla completamente. La descrizione contiene informazioni specifiche sul vino che DEVI considerare nelle tue selezioni e motivazioni.
+   - Quando un vino ha un "Uvaggio" (grape_variety) nella carta, DEVI considerarlo nelle tue selezioni e motivazioni.
+   - NON inventare caratteristiche che non sono nella descrizione o nell'uvaggio.
+   - Usa la descrizione e l'uvaggio per spiegare perché un vino si abbina bene ai piatti o rispetta le preferenze del cliente.
+
 6. **RANKING COMPLETO**:
    - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N) in base SOLO alle caratteristiche organolettiche e all'abbinamento con i piatti. IGNORA COMPLETAMENTE il budget/prezzo. Il rank 1 è il vino migliore per caratteristiche e abbinamenti. L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking SOLO in base a caratteristiche e abbinamenti, SENZA menzionare prezzo o budget.
    - Percorso: ESATTAMENTE 2-3 percorsi, ognuno con esattamente {f"{bottles_count} vini" if journey_pref == 'journey' and bottles_count else "2-3 vini"} per percorso. NON generare più di 3 percorsi, NON generare meno di 2 percorsi.
@@ -705,8 +707,19 @@ def _build_wines_list_for_finetuned(wines: List[Dict]) -> str:
         name = wine.get('name', 'N/D')
         wine_type = wine.get('type', 'N/D')
         price = wine.get('price', 'N/D')
+        grape_variety = wine.get('grape_variety', '')
+        description = wine.get('description', '')
         
-        context_parts.append(f"ID: {wine_id} | {name} | Tipo: {wine_type} | Prezzo: €{price}")
+        # Build wine line with all available info
+        wine_line = f"ID: {wine_id} | {name} | Tipo: {wine_type} | Prezzo: €{price}"
+        
+        if grape_variety:
+            wine_line += f" | Uvaggio: {grape_variety}"
+        
+        if description:
+            wine_line += f" | Descrizione: {description}"
+        
+        context_parts.append(wine_line)
     
     return "\n".join(context_parts)
 

@@ -214,7 +214,7 @@ def clear_products(venue_id):
 def parse_wine_csv():
     """
     Parse CSV file with wine list and save to database.
-    Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt)
+    Expected CSV columns: nome, tipo, prezzo, regione (opt), vitigno (opt), anno (opt), produttore (opt), description (opt)
     """
     logger.info(f"=== CSV PARSE REQUEST ===")
     logger.info(f"Method: {request.method}")
@@ -250,7 +250,7 @@ def parse_wine_csv():
         
         # Required columns
         required_columns = ['nome', 'tipo', 'prezzo']
-        optional_columns = ['regione', 'vitigno', 'anno', 'produttore']
+        optional_columns = ['regione', 'vitigno', 'anno', 'produttore', 'description']
         
         # Validate header
         if not csv_reader.fieldnames:
@@ -317,6 +317,7 @@ def parse_wine_csv():
                 vitigno = row.get(fieldnames_lower.get('vitigno', 'vitigno'), '').strip() or None
                 anno_str = row.get(fieldnames_lower.get('anno', 'anno'), '').strip() or None
                 produttore = row.get(fieldnames_lower.get('produttore', 'produttore'), '').strip() or None
+                descrizione = row.get(fieldnames_lower.get('description', 'description'), '').strip() or None
                 
                 # Parse vintage
                 anno = None
@@ -348,6 +349,8 @@ def parse_wine_csv():
                         product.vintage = anno
                     if produttore and hasattr(Product, 'producer'):
                         product.producer = produttore
+                    if descrizione and hasattr(Product, 'description'):
+                        product.description = descrizione
                     
                     db.session.add(product)
                     # Flush to get the ID before commit
@@ -364,6 +367,7 @@ def parse_wine_csv():
                         'grape_variety': vitigno,
                         'vintage': anno,
                         'producer': produttore,
+                        'description': descrizione,
                         'saved': True  # Flag to indicate already saved to DB
                     })
                     

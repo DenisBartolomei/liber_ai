@@ -15,7 +15,8 @@ import {
   Sparkles,
   ChefHat,
   Wine,
-  X
+  X,
+  Edit3
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { venueService, menuService, productService } from '../services/api'
@@ -55,6 +56,12 @@ function DashboardSettings() {
   const [menuText, setMenuText] = useState('')
   const [parsingMenu, setParsingMenu] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
+  
+  // Manual dish entry state (same as onboarding)
+  const [newDishName, setNewDishName] = useState('')
+  const [newDishCategory, setNewDishCategory] = useState('primo')
+  const [newDishMainIngredient, setNewDishMainIngredient] = useState('')
+  const [newDishCookingMethod, setNewDishCookingMethod] = useState('')
   
   // Featured wines state
   const [products, setProducts] = useState([])
@@ -304,6 +311,61 @@ function DashboardSettings() {
       toast.error('Errore durante l\'eliminazione')
     }
   }
+  
+  // Manual dish entry handlers (same as onboarding)
+  const handleAddDish = async () => {
+    if (!newDishName.trim()) {
+      toast.error('Inserisci il nome del piatto')
+      return
+    }
+    
+    if (!venue?.id) {
+      toast.error('Errore: venue non trovato')
+      return
+    }
+    
+    const newItem = {
+      name: newDishName.trim(),
+      category: newDishCategory,
+      main_ingredient: newDishMainIngredient.trim() || null,
+      cooking_method: newDishCookingMethod.trim() || null
+    }
+    
+    try {
+      await menuService.bulkAdd(venue.id, [newItem])
+      await fetchMenu() // Refresh menu list
+      setNewDishName('')
+      setNewDishMainIngredient('')
+      setNewDishCookingMethod('')
+      toast.success('Piatto aggiunto!')
+    } catch (error) {
+      toast.error('Errore durante l\'aggiunta del piatto')
+    }
+  }
+  
+  const handleUpdateItem = (id, field, value) => {
+    setMenuItems(menuItems.map(item => 
+      item.id === id ? { ...item, [field]: value } : item
+    ))
+  }
+  
+  const handleSaveMenuItem = async (item) => {
+    if (!venue?.id) return
+    
+    try {
+      await menuService.updateItem(venue.id, item.id, {
+        name: item.name,
+        category: item.category,
+        main_ingredient: item.main_ingredient,
+        cooking_method: item.cooking_method
+      })
+      await fetchMenu()
+      setEditingItem(null)
+      toast.success('Piatto aggiornato!')
+    } catch (error) {
+      toast.error('Errore durante l\'aggiornamento')
+    }
+  }
 
   // Group menu items by category
   const groupedItems = menuItems.reduce((acc, item) => {
@@ -467,14 +529,79 @@ function DashboardSettings() {
           </div>
         </div>
 
-        {/* Menu Upload Form */}
+        {/* Menu Add Form - Same as onboarding */}
         {showMenuUpload && (
-          <div className="mb-6 p-4 bg-gold-50 rounded-xl border border-gold-200">
-            <h3 className="font-semibold text-burgundy-900 mb-3">Carica menù</h3>
-            <textarea
-              value={menuText}
-              onChange={(e) => setMenuText(e.target.value)}
-              placeholder={`Incolla qui il tuo menù...
+          <div className="mb-6 space-y-4">
+            {/* Manual Entry Form */}
+            <div className="bg-white rounded-xl border border-burgundy-200 p-6">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-12 h-12 bg-gold-100 rounded-xl flex items-center justify-center">
+                  <ChefHat className="w-6 h-6 text-gold-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-burgundy-900 mb-1">
+                    Aggiungi i tuoi piatti
+                  </h3>
+                  <p className="text-sm text-burgundy-600">
+                    Inserisci i piatti del menù uno alla volta. Serviranno per suggerire abbinamenti perfetti.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newDishName}
+                    onChange={(e) => setNewDishName(e.target.value)}
+                    placeholder="Nome del piatto *"
+                    className="flex-1 px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                    required
+                  />
+                  <select
+                    value={newDishCategory}
+                    onChange={(e) => setNewDishCategory(e.target.value)}
+                    className="px-3 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                  >
+                    {Object.entries(categoryLabels).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={newDishMainIngredient}
+                    onChange={(e) => setNewDishMainIngredient(e.target.value)}
+                    placeholder="Ingrediente principale (es. Manzo, Pesce, Pasta)"
+                    className="px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                  />
+                  <input
+                    type="text"
+                    value={newDishCookingMethod}
+                    onChange={(e) => setNewDishCookingMethod(e.target.value)}
+                    placeholder="Metodo di cottura (es. Griglia, Al forno, Crudo)"
+                    className="px-4 py-2 border border-burgundy-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-400"
+                  />
+                </div>
+                <button
+                  onClick={handleAddDish}
+                  disabled={!newDishName.trim()}
+                  className="w-full px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  Aggiungi Piatto
+                </button>
+              </div>
+            </div>
+
+            {/* AI Parsing Option */}
+            <div className="bg-gold-50 rounded-xl border border-gold-200 p-4">
+              <h3 className="font-semibold text-burgundy-900 mb-3">Oppure carica menù con AI</h3>
+              <textarea
+                value={menuText}
+                onChange={(e) => setMenuText(e.target.value)}
+                placeholder={`Incolla qui il tuo menù...
 
 Esempio:
 ANTIPASTI
@@ -484,27 +611,28 @@ Carpaccio di manzo - €14
 PRIMI PIATTI
 Spaghetti alle vongole - €16
 Risotto ai funghi - €18`}
-              className="w-full h-40 p-3 border border-gold-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gold-400 text-sm"
-            />
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={handleParseMenu}
-                disabled={!menuText.trim() || parsingMenu}
-                className="btn-primary flex items-center gap-2"
-              >
-                {parsingMenu ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Sparkles className="w-4 h-4" />
-                )}
-                {parsingMenu ? 'Elaborazione...' : 'Estrai con AI'}
-              </button>
-              <button
-                onClick={() => { setShowMenuUpload(false); setMenuText('') }}
-                className="btn-outline"
-              >
-                Annulla
-              </button>
+                className="w-full h-40 p-3 border border-gold-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gold-400 text-sm"
+              />
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={handleParseMenu}
+                  disabled={!menuText.trim() || parsingMenu}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  {parsingMenu ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  {parsingMenu ? 'Elaborazione...' : 'Estrai con AI'}
+                </button>
+                <button
+                  onClick={() => { setShowMenuUpload(false); setMenuText('') }}
+                  className="btn-outline"
+                >
+                  Annulla
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -536,18 +664,90 @@ Risotto ai funghi - €18`}
                     {catItems.map(item => (
                       <div 
                         key={item.id}
-                        className="flex items-center gap-2 p-2 bg-white rounded-lg border border-burgundy-100 text-sm"
+                        className="bg-white rounded-lg border border-burgundy-100 p-2"
                       >
-                        <span className="flex-1 text-burgundy-900">{item.name}</span>
-                        {item.price && (
-                          <span className="text-gold-600 font-medium">€{item.price}</span>
+                        {editingItem === item.id ? (
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
+                                className="flex-1 px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                placeholder="Nome piatto"
+                                autoFocus
+                              />
+                              <select
+                                value={item.category}
+                                onChange={(e) => handleUpdateItem(item.id, 'category', e.target.value)}
+                                className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                              >
+                                {Object.entries(categoryLabels).map(([k, v]) => (
+                                  <option key={k} value={k}>{v}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleSaveMenuItem(item)}
+                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                              >
+                                <Save className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setEditingItem(null)}
+                                className="p-1 text-burgundy-400 hover:bg-burgundy-50 rounded"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                type="text"
+                                value={item.main_ingredient || ''}
+                                onChange={(e) => handleUpdateItem(item.id, 'main_ingredient', e.target.value)}
+                                className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                placeholder="Ingrediente principale"
+                              />
+                              <input
+                                type="text"
+                                value={item.cooking_method || ''}
+                                onChange={(e) => handleUpdateItem(item.id, 'cooking_method', e.target.value)}
+                                className="px-2 py-1 border border-burgundy-200 rounded text-sm"
+                                placeholder="Metodo di cottura"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <span className="text-burgundy-900 text-sm font-medium block">{item.name}</span>
+                              {(item.main_ingredient || item.cooking_method) && (
+                                <div className="flex gap-2 mt-1">
+                                  {item.main_ingredient && (
+                                    <span className="text-xs text-burgundy-500">Ingrediente: {item.main_ingredient}</span>
+                                  )}
+                                  {item.cooking_method && (
+                                    <span className="text-xs text-burgundy-500">Cottura: {item.cooking_method}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {item.price && (
+                              <span className="text-gold-600 font-medium text-sm">€{item.price}</span>
+                            )}
+                            <button
+                              onClick={() => setEditingItem(item.id)}
+                              className="p-1 text-burgundy-400 hover:text-burgundy-600 rounded"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMenuItem(item.id)}
+                              className="p-1 text-red-400 hover:text-red-600 rounded"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         )}
-                        <button
-                          onClick={() => handleDeleteMenuItem(item.id)}
-                          className="p-1 text-red-400 hover:text-red-600 rounded"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
                       </div>
                     ))}
                   </div>

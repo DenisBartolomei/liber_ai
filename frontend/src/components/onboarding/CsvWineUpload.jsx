@@ -158,11 +158,11 @@ function CsvWineUpload({ onWinesParsed, venueId }) {
             </p>
           </div>
 
-          <div className="text-xs text-burgundy-500 bg-burgundy-50 px-4 py-2 rounded-lg">
-            <p className="font-medium mb-1">Formato CSV richiesto:</p>
-            <p>Colonne obbligatorie: nome, tipo, prezzo</p>
-            <p>Colonne opzionali: regione, vitigno, anno, produttore</p>
-          </div>
+              <div className="text-xs text-burgundy-500 bg-burgundy-50 px-4 py-2 rounded-lg">
+                <p className="font-medium mb-1">Formato CSV richiesto:</p>
+                <p>Colonne obbligatorie: nome, tipo, prezzo</p>
+                <p>Colonne opzionali: regione, vitigno, anno, produttore, description</p>
+              </div>
         </div>
       </div>
 
