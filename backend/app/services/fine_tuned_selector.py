@@ -88,18 +88,17 @@ class FineTunedWineSelector:
         messages.append({"role": "user", "content": user_message})
         
         try:
-            # Calculate dynamic token limit based on number of wines
-            # Each wine requires ~150 tokens (ID, name, price, reason)
-            estimated_tokens_per_wine = 150
-            base_tokens = 1000  # For JSON structure and prompt overhead
-            max_tokens = max(4000, len(all_wines) * estimated_tokens_per_wine + base_tokens)
-            # Reasonable maximum limit: 16000 tokens (approximately 100 wines)
-            max_tokens = min(max_tokens, 16000)
+            # Calculate dynamic token limit - INCREASED (max 8000)
+            # Each wine requires ~200 tokens (ID, name, price, reason with description)
+            estimated_tokens_per_wine = 200  # Increased from 150
+            base_tokens = 1500  # Increased from 1000
+            min_tokens = 6000  # Increased from 4000
+            max_tokens = min(max(min_tokens, len(all_wines) * estimated_tokens_per_wine + base_tokens), 8000)
             
             logger.info(
                 f"Calling fine-tuned model with {len(all_wines)} wines, "
                 f"max_completion_tokens={max_tokens} "
-                f"(estimated: {len(all_wines)} wines × {estimated_tokens_per_wine} tokens + {base_tokens} base)"
+                f"(estimated: {len(all_wines)} wines × {estimated_tokens_per_wine} tokens + {base_tokens} base, max 8000)"
             )
             
             # Call fine-tuned model with JSON response format
@@ -107,9 +106,18 @@ class FineTunedWineSelector:
                 model=self.model,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent selections
-                max_completion_tokens=max_tokens,  # Dynamic limit based on number of wines
+                max_completion_tokens=max_tokens,  # Dynamic limit based on number of wines (max 8000)
                 response_format={"type": "json_object"}
             )
+            
+            # Check if response was truncated
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason == "length":
+                logger.error(
+                    f"CRITICAL: Response was truncated (finish_reason=length). "
+                    f"max_tokens={max_tokens} was insufficient for {len(all_wines)} wines. "
+                    f"JSON may be incomplete. Activating fallback."
+                )
             
             ai_response = response.choices[0].message.content
             
@@ -451,20 +459,75 @@ class FineTunedWineSelector:
                 
                 logger.warning(
                     f"CRITICAL: Model returned only {actual_wine_count}/{expected_wine_count} wines "
-                    f"({missing_percentage:.1f}% missing). This is a business-critical issue."
+                    f"({missing_percentage:.1f}% missing). Adding {missing_count} missing wines via fallback."
+                )
+                
+                # Find missing wines
+                validated_wine_ids = {w.get('id') for w in validated['wines']}
+                missing_wines = [w for w in all_wines if w.get('id') not in validated_wine_ids]
+                
+                # Identify wine types returned by model
+                returned_wine_types = set()
+                for wine in validated['wines']:
+                    wine_type = wine.get('type')
+                    if wine_type:
+                        returned_wine_types.add(wine_type.lower())
+                
+                # Split missing wines by type: same type first, then others
+                same_type_wines = []
+                other_type_wines = []
+                
+                for wine in missing_wines:
+                    wine_type = wine.get('type', '').lower() if wine.get('type') else ''
+                    if wine_type in returned_wine_types:
+                        same_type_wines.append(wine)
+                    else:
+                        other_type_wines.append(wine)
+                
+                # Sort each group (e.g., by price ascending for consistency)
+                same_type_wines.sort(key=lambda w: float(w.get('price', 0)))
+                other_type_wines.sort(key=lambda w: (w.get('type', '').lower(), float(w.get('price', 0))))
+                
+                # Combine: same type first, then others
+                ordered_missing_wines = same_type_wines + other_type_wines
+                
+                # Add missing wines with fallback ranking
+                max_rank = max([w.get('rank', 0) for w in validated['wines']], default=0)
+                for idx, wine in enumerate(ordered_missing_wines):
+                    # Use description as reason if available, otherwise default
+                    reason = wine.get('description', 'Vino disponibile nella carta.')
+                    if not reason or reason.strip() == '':
+                        reason = 'Vino disponibile nella carta.'
+                    
+                    validated['wines'].append({
+                        'id': wine.get('id'),
+                        'name': wine.get('name'),
+                        'price': wine.get('price'),
+                        'type': wine.get('type'),
+                        'region': wine.get('region'),
+                        'grape_variety': wine.get('grape_variety'),
+                        'vintage': wine.get('vintage'),
+                        'description': wine.get('description'),
+                        'tasting_notes': wine.get('tasting_notes'),
+                        'reason': reason,  # Use description as reason
+                        'rank': max_rank + idx + 1,
+                        'best': False
+                    })
+                
+                # Re-sort by rank
+                validated['wines'].sort(key=lambda w: w.get('rank', 999))
+                
+                logger.info(
+                    f"Fallback completed: Added {len(ordered_missing_wines)} wines "
+                    f"({len(same_type_wines)} same type, {len(other_type_wines)} other types). "
+                    f"Total: {len(validated['wines'])}"
                 )
                 
                 if missing_percentage > 20:
                     logger.error(
                         f"CRITICAL ERROR: More than 20% of wines missing from ranking "
                         f"({missing_count} out of {expected_wine_count} wines missing). "
-                        f"This is a critical business issue - customers are not seeing all available wines. "
-                        f"Expected {expected_wine_count} wines, got {actual_wine_count}."
-                    )
-                elif missing_percentage > 0:
-                    logger.warning(
-                        f"WARNING: {missing_count} wines ({missing_percentage:.1f}%) missing from ranking. "
-                        f"Model should return all {expected_wine_count} wines."
+                        f"Fallback has been applied to ensure all wines are present."
                     )
             elif actual_wine_count == expected_wine_count:
                 logger.info(

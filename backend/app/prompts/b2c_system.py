@@ -548,8 +548,10 @@ IMPORTANTE:
 
 DEVI RESTITUIRE TUTTI I VINI DELLA LISTA SOTTO, SENZA ECCEZIONI.
 
-Se la lista contiene 20 vini, il tuo JSON deve contenere esattamente 20 vini rankati.
-Se la lista contiene 50 vini, il tuo JSON deve contenere esattamente 50 vini rankati.
+ESEMPIO CONCRETO: Se la lista contiene 8 vini, il tuo JSON deve contenere esattamente 8 vini con rank da 1 a 8.
+Se la lista contiene 20 vini, il tuo JSON deve contenere esattamente 20 vini con rank da 1 a 20.
+Se la lista contiene 50 vini, il tuo JSON deve contenere esattamente 50 vini con rank da 1 a 50.
+
 NON puoi saltare vini. NON puoi restituire solo i migliori 3 o 5.
 
 Il numero di vini nel JSON deve corrispondere ESATTAMENTE al numero di vini nella lista "CARTA DEI VINI DISPONIBILI".
@@ -611,6 +613,8 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 ## OUTPUT
 
 Restituisci SOLO il JSON valido, senza testo aggiuntivo. Il JSON deve essere valido e parsabile.
+
+RICORDA: Il numero di vini nel JSON deve essere ESATTAMENTE uguale al numero di vini nella lista "CARTA DEI VINI DISPONIBILI" sopra. Conta i vini prima di inviare la risposta.
 """
 
     return prompt
@@ -685,7 +689,7 @@ Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini pri
 
 ## ISTRUZIONI
 
-1. **SII CONCISO**: Massimo 80 parole totali. Solo nomi vini + breve motivo (1 frase per vino, max 15-20 parole).
+1. **SII CONCISO**: Massimo 100 parole totali. Solo nomi vini + breve motivo (1 frase per vino).
 
 2. **FORMATO**:
    - Singola etichetta: "Il mio consiglio: [Nome Vino] - [breve motivo]. Un'alternativa: [Nome Vino] - [breve motivo]. [Nome Vino] - [breve motivo]."
