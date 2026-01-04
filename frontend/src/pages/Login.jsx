@@ -117,13 +117,6 @@ function Login() {
               )}
             </button>
           </form>
-
-          <p className="mt-8 text-center text-burgundy-600">
-            Non hai un account?{' '}
-            <Link to="/register" className="text-gold-600 hover:text-gold-700 font-semibold">
-              Registrati gratis
-            </Link>
-          </p>
         </motion.div>
       </div>
 

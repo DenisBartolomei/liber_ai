@@ -60,10 +60,9 @@ function DashboardLayout() {
           {/* Logo */}
           <div className="p-6 border-b border-burgundy-800">
             <div className="flex items-center gap-3">
-              <Logo size="lg" className="rounded-xl" />
-              <div>
-                <h1 className="font-display text-xl font-bold">LIBER</h1>
-                <p className="text-xs text-cream-100/70">Sommelier AI</p>
+              <div className="flex-1">
+                <h1 className="font-display text-xl font-bold text-left">LIBER</h1>
+                <p className="text-xs text-cream-100/70 text-left">Sommelier AI</p>
               </div>
             </div>
           </div>

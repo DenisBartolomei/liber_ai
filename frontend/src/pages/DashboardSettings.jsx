@@ -53,8 +53,6 @@ function DashboardSettings() {
   const [menuItems, setMenuItems] = useState([])
   const [loadingMenu, setLoadingMenu] = useState(false)
   const [showMenuUpload, setShowMenuUpload] = useState(false)
-  const [menuText, setMenuText] = useState('')
-  const [parsingMenu, setParsingMenu] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   
   // Manual dish entry state (same as onboarding)
@@ -264,32 +262,6 @@ function DashboardSettings() {
   }
   
   // Menu management handlers
-  const handleParseMenu = async () => {
-    if (!menuText.trim()) {
-      toast.error('Inserisci il testo del menù')
-      return
-    }
-    
-    setParsingMenu(true)
-    try {
-      const response = await menuService.parseMenu(venue.id, menuText)
-      const newItems = response.data.items || []
-      
-      if (newItems.length > 0) {
-        await menuService.bulkAdd(venue.id, newItems)
-        await fetchMenu()
-        toast.success(`${newItems.length} piatti importati!`)
-      }
-      
-      setMenuText('')
-      setShowMenuUpload(false)
-    } catch (error) {
-      toast.error('Errore durante il parsing del menù')
-    } finally {
-      setParsingMenu(false)
-    }
-  }
-  
   const handleDeleteMenuItem = async (itemId) => {
     try {
       await menuService.deleteItem(venue.id, itemId)
@@ -591,46 +563,6 @@ function DashboardSettings() {
                 >
                   <Plus className="w-5 h-5" />
                   Aggiungi Piatto
-                </button>
-              </div>
-            </div>
-
-            {/* AI Parsing Option */}
-            <div className="bg-gold-50 rounded-xl border border-gold-200 p-4">
-              <h3 className="font-semibold text-burgundy-900 mb-3">Oppure carica menù con AI</h3>
-              <textarea
-                value={menuText}
-                onChange={(e) => setMenuText(e.target.value)}
-                placeholder={`Incolla qui il tuo menù...
-
-Esempio:
-ANTIPASTI
-Bruschetta al pomodoro - €8
-Carpaccio di manzo - €14
-
-PRIMI PIATTI
-Spaghetti alle vongole - €16
-Risotto ai funghi - €18`}
-                className="w-full h-40 p-3 border border-gold-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-gold-400 text-sm"
-              />
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={handleParseMenu}
-                  disabled={!menuText.trim() || parsingMenu}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  {parsingMenu ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-4 h-4" />
-                  )}
-                  {parsingMenu ? 'Elaborazione...' : 'Estrai con AI'}
-                </button>
-                <button
-                  onClick={() => { setShowMenuUpload(false); setMenuText('') }}
-                  className="btn-outline"
-                >
-                  Annulla
                 </button>
               </div>
             </div>

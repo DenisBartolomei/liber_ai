@@ -602,6 +602,11 @@ function DashboardAnalytics() {
                   <p className="text-2xl font-bold text-burgundy-900">
                     {formatCurrency(overviewData.avg_margin)}
                   </p>
+                  {overviewData.avg_bottle_value && overviewData.avg_bottle_value > 0 && (
+                    <p className="text-sm text-burgundy-500 mt-1">
+                      {((overviewData.avg_margin / overviewData.avg_bottle_value) * 100).toFixed(1)}%
+                    </p>
+                  )}
                   <p className="text-sm text-burgundy-500 mt-1">
                     Per bottiglia
                   </p>

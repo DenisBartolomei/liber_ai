@@ -5,12 +5,27 @@ function WineIdentityCard({ wine, onClose }) {
   // Get image URL - support both relative and absolute paths
   const getImageUrl = () => {
     if (!wine.image_url) return null
-    if (wine.image_url.startsWith('http')) return wine.image_url
-    if (wine.image_url.startsWith('/')) return wine.image_url
+    
+    // Se è un URL assoluto, usalo direttamente
+    if (wine.image_url.startsWith('http://') || wine.image_url.startsWith('https://')) {
+      return wine.image_url
+    }
+    
+    // Se inizia con /, è già un path relativo corretto
+    if (wine.image_url.startsWith('/')) {
+      return wine.image_url
+    }
+    
+    // Altrimenti, aggiungi / all'inizio
     return `/${wine.image_url}`
   }
 
   const imageUrl = getImageUrl()
+  
+  // Debug logging (rimuovere in produzione se necessario)
+  if (wine.image_url && !imageUrl) {
+    console.warn('WineIdentityCard: Could not parse image_url:', wine.image_url)
+  }
   
   // Parse aromas if it's a string
   const getAromasList = () => {
