@@ -359,6 +359,11 @@ class AIAgentService:
                     f"Total wines: {len(all_wines)}"
                 )
             
+            # Calculate max_price for fine-tuned model (budget + 15%)
+            max_price_for_model = None
+            if budget_max:
+                max_price_for_model = budget_max * 1.15
+            
             fine_tuned_selector = FineTunedWineSelector()
             wine_selection = fine_tuned_selector.select_wines(
                 venue_name=venue.name,
@@ -368,7 +373,8 @@ class AIAgentService:
                 all_wines=all_wines,
                 history=history,
                 user_message=user_message,
-                featured_wines=featured_wines
+                featured_wines=featured_wines,
+                max_price=max_price_for_model
             )
             
             # Log detailed information about wines returned from model

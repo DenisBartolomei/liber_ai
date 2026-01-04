@@ -6,13 +6,58 @@ import uuid
 import logging
 from flask import Blueprint, request, jsonify
 from app import db
-from app.models import Venue, Session, Message, WineProposal, Product
+from app.models import Venue, Session, Message, WineProposal, Product, AccessToken
 from app.services.ai_agent import AIAgentService
 from app.services.conversation_manager import ConversationManager
 
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
+
+
+@chat_bp.route('/start-token', methods=['GET'])
+def create_start_token():
+    """
+    Create a new access token for a venue.
+    This endpoint is called when a customer first accesses the venue page.
+    The token is one-time use and expires after 10 minutes.
+    
+    Query params:
+        venue_slug: The venue slug
+    """
+    venue_slug = request.args.get('venue_slug')
+    
+    if not venue_slug:
+        return jsonify({'message': 'venue_slug è obbligatorio'}), 400
+    
+    venue = Venue.query.filter_by(slug=venue_slug, is_active=True).first()
+    
+    if not venue:
+        return jsonify({'message': 'Locale non trovato'}), 404
+    
+    # Check annual conversation limit (informational, doesn't block token creation)
+    can_create, limit_message = venue.can_create_conversation()
+    if not can_create:
+        # Still allow token creation, but return warning
+        logger.warning(f"Venue {venue.id} reached conversation limit, but allowing token creation")
+    
+    # Create access token (valid for 10 minutes, one-time use)
+    access_token = AccessToken.create_for_venue(
+        venue_id=venue.id,
+        expires_in_minutes=10
+    )
+    
+    logger.info(f"Created start token {access_token.token[:8]}... for venue {venue.id}")
+    
+    return jsonify({
+        'access_token': access_token.token,
+        'expires_at': access_token.expires_at.isoformat(),
+        'venue': {
+            'id': venue.id,
+            'name': venue.name,
+            'slug': venue.slug
+        }
+    }), 201
 
 
 def track_wine_proposals(session_id, message_id, response_data):
@@ -169,17 +214,26 @@ def track_wine_proposals(session_id, message_id, response_data):
 def create_session():
     """
     Create a new chat session for a customer (B2C).
+    Requires a valid access token (one-time use).
     
     Expected JSON:
     {
-        "venue_slug": "ristorante-da-mario-abc123"
+        "venue_slug": "ristorante-da-mario-abc123",
+        "access_token": "uuid-v4-string"  # Token obtained from /start-token
     }
     """
     data = request.get_json()
     venue_slug = data.get('venue_slug')
+    access_token_str = data.get('access_token')
     
     if not venue_slug:
         return jsonify({'message': 'venue_slug è obbligatorio'}), 400
+    
+    if not access_token_str:
+        return jsonify({
+            'message': 'access_token è obbligatorio',
+            'detail': 'Devi ottenere un token di accesso prima di creare una sessione'
+        }), 400
     
     venue = Venue.query.filter_by(slug=venue_slug, is_active=True).first()
     
@@ -192,53 +246,57 @@ def create_session():
         return jsonify({
             'message': 'Limite conversazioni annuali raggiunto',
             'detail': limit_message
-        }), 429  # 429 Too Many Requests
+        }), 429
     
-    # Check for duplicate sessions created within the last 10 seconds
-    # (same venue, same IP address, same user agent)
-    recent_duplicate = Session.query.filter(
-        Session.venue_id == venue.id,
-        Session.mode == 'b2c',
-        Session.ip_address == request.remote_addr,
-        Session.created_at >= datetime.utcnow() - timedelta(seconds=10)
-    ).order_by(Session.created_at.desc()).first()
+    # ============================================
+    # VALIDATE ACCESS TOKEN
+    # ============================================
+    access_token = AccessToken.query.filter_by(token=access_token_str).first()
     
-    if recent_duplicate:
-        # Count messages in the existing session
-        message_count = Message.query.filter_by(session_id=recent_duplicate.id).count()
-        
-        if message_count == 0:
-            # Empty session: delete it and create a new one
-            logger.info(f"Deleting empty duplicate session {recent_duplicate.id} created at {recent_duplicate.created_at}")
-            db.session.delete(recent_duplicate)
-            db.session.commit()
-            # Proceed with creating new session below
-        else:
-            # Session with data: return the existing one
-            logger.info(f"Returning existing session {recent_duplicate.id} with {message_count} messages")
-            welcome_message = venue.welcome_message or \
-                'Benvenuto! Sono il tuo sommelier virtuale. Come posso aiutarti nella scelta del vino oggi?'
-            
+    if not access_token:
+        return jsonify({
+            'message': 'Token di accesso non valido',
+            'detail': 'Il token fornito non esiste'
+        }), 403
+    
+    # Verify token belongs to this venue
+    if access_token.venue_id != venue.id:
+        return jsonify({
+            'message': 'Token di accesso non valido per questo locale',
+            'detail': 'Il token non corrisponde al locale richiesto'
+        }), 403
+    
+    # Check if token is valid (not used and not expired)
+    if not access_token.is_valid():
+        if access_token.is_used:
             return jsonify({
-                'session_token': recent_duplicate.session_token,
-                'venue': {
-                    'name': venue.name,
-                    'logo_url': venue.logo_url
-                },
-                'welcome_message': welcome_message
-            }), 200
+                'message': 'Token di accesso già utilizzato',
+                'detail': 'Questo token è stato già usato per creare una sessione. Ogni token può essere usato una sola volta.'
+            }), 403
+        else:
+            return jsonify({
+                'message': 'Token di accesso scaduto',
+                'detail': 'Il token è scaduto. Scansiona nuovamente il QR code per ottenere un nuovo token.'
+            }), 403
     
-    # Create new session
+    # ============================================
+    # CREATE SESSION
+    # ============================================
     conversation_manager = ConversationManager()
     session = conversation_manager.create_session(
         venue_id=venue.id,
         mode='b2c',
         device_type=request.headers.get('X-Device-Type'),
         user_agent=request.headers.get('User-Agent'),
-        ip_address=request.remote_addr
+        ip_address=request.remote_addr,
+        context={'access_token_id': access_token.id}  # Track which token was used
     )
     
-    # Generate welcome message
+    # Mark token as used (one-time use)
+    access_token.mark_as_used(session.id)
+    
+    logger.info(f"Created session {session.id} for venue {venue.id} using access token {access_token.token[:8]}...")
+    
     welcome_message = venue.welcome_message or \
         'Benvenuto! Sono il tuo sommelier virtuale. Come posso aiutarti nella scelta del vino oggi?'
     

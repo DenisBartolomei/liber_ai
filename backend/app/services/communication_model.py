@@ -82,11 +82,15 @@ class CommunicationModelService:
         messages.append({"role": "user", "content": user_message})
         
         try:
+            # Determine max tokens based on mode (journeys need slightly more for 3 paths)
+            is_journey_mode = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
+            max_tokens = 250 if is_journey_mode else 200  # Slightly more for journeys with up to 3 paths
+            
             # Call communication model - concise responses only
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_completion_tokens=200  # Concise responses: only wine names + brief reasons
+                max_completion_tokens=max_tokens  # Concise responses: only wine names + brief reasons
             )
             
             message = response.choices[0].message.content

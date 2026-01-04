@@ -135,8 +135,14 @@ export const productService = {
 // Chat Service
 export const chatService = {
   // B2C Customer chat
-  createSession: (venueSlug) => 
-    api.post('/chat/sessions', { venue_slug: venueSlug }),
+  createStartToken: (venueSlug) =>
+    api.get('/chat/start-token', { params: { venue_slug: venueSlug } }),
+  
+  createSession: (venueSlug, accessToken) => 
+    api.post('/chat/sessions', { 
+      venue_slug: venueSlug,
+      access_token: accessToken
+    }),
   
   sendMessage: (sessionToken, message, context = null) => 
     api.post('/chat/messages', { 

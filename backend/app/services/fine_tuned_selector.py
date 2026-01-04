@@ -46,7 +46,8 @@ class FineTunedWineSelector:
         all_wines: List[Dict],
         history: List[Dict],
         user_message: str,
-        featured_wines: Optional[List[int]] = None
+        featured_wines: Optional[List[int]] = None,
+        max_price: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Select wines using fine-tuned model and return structured JSON.
@@ -60,6 +61,7 @@ class FineTunedWineSelector:
             history: Conversation history
             user_message: Current user message
             featured_wines: Optional list of product IDs that should be prioritized (max 2)
+            max_price: Optional maximum price (budget + 15%) - already calculated, model should not see original budget
             
         Returns:
             Dict with 'wines' (for single mode) or 'journeys' (for journey mode)
@@ -74,7 +76,8 @@ class FineTunedWineSelector:
             context=context,
             gathered_info=gathered_info,
             all_wines=all_wines,
-            featured_wines=featured_wines or []
+            featured_wines=featured_wines or [],
+            max_price=max_price
         )
         
         # Build conversation context for the model - limit history for speed

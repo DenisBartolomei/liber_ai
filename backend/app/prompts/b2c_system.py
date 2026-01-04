@@ -325,7 +325,8 @@ def get_finetuned_selection_prompt(
     context: Dict,
     gathered_info: Dict,
     all_wines: List[Dict],
-    featured_wines: List[int] = None
+    featured_wines: List[int] = None,
+    max_price: Optional[float] = None
 ) -> str:
     """
     Generate prompt for fine-tuned model to select wines and return structured JSON.
@@ -333,9 +334,10 @@ def get_finetuned_selection_prompt(
     Args:
         venue_name: Name of the venue
         context: Context with dishes, guest_count
-        gathered_info: Preferences (wine_type, journey_preference, budget)
-        all_wines: Complete list of wines from DB
+        gathered_info: Preferences (wine_type, journey_preference) - budget is NOT included
+        all_wines: Complete list of wines from DB (already filtered by max_price)
         featured_wines: Optional list of product IDs to prioritize (max 2)
+        max_price: Optional maximum price (budget + 15%) - already calculated, model should not see original budget
         
     Returns:
         System prompt for fine-tuned model
@@ -344,10 +346,9 @@ def get_finetuned_selection_prompt(
     dishes = context.get('dishes', []) if context else []
     guest_count = context.get('guest_count', 2) if context else 2
     
-    # Build preferences
+    # Build preferences (budget is NOT included - model only sees max_price)
     wine_type = gathered_info.get('wine_type', 'any')
     journey_pref = gathered_info.get('journey_preference', 'single')
-    budget = gathered_info.get('budget')
     bottles_count = gathered_info.get('bottles_count')
     
     # Handle featured_wines parameter (ensure it's a list)
@@ -376,7 +377,7 @@ I seguenti vini devono avere PRIORITÀ quando rientrano nei parametri del client
 
 {chr(10).join(featured_wines_list)}
 
-IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati, ma SOLO se rientrano nei parametri (budget, tipo vino, abbinamenti).
+IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati, ma SOLO se rientrano nei parametri (tipo vino, abbinamenti).
 """
     
     # Build featured wines priority rules text
@@ -385,7 +386,7 @@ IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati,
         featured_ids_str = ', '.join(map(str, featured_wines))
         featured_wines_priority_text = f"""⚠️ IMPORTANTE: Ci sono vini in evidenza che devono avere PRIORITÀ quando appropriati:
 
-   - Vini in evidenza (ID: {featured_ids_str}): Questi vini devono essere PROPOSTI quando rientrano nei parametri del cliente (tipo vino, abbinamenti). IGNORA il budget.
+   - Vini in evidenza (ID: {featured_ids_str}): Questi vini devono essere PROPOSTI quando rientrano nei parametri del cliente (tipo vino, abbinamenti).
    - Se un vino in evidenza rientra nei parametri, DEVE essere incluso nelle proposte con best=true (consiglio principale).
    - Se ci sono 2 vini in evidenza e entrambi rientrano nei parametri, includere entrambi (uno con best=true, l'altro con best=false).
    - La proposta deve essere NATURALE e TRASPARENTE - non menzionare che è una scelta del ristorante.
@@ -411,34 +412,12 @@ IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati,
     
     dish_context = "\n".join(dish_context_parts) if dish_context_parts else "Nessun piatto specificato"
     
-    # Budget constraints
-    budget_text = ""
-    budget_max = None
-    if budget is None or budget == 'nolimit':
-        budget_text = "Nessuna restrizione di budget. Ottimizza il ricavo proponendo vini di qualità."
-    elif isinstance(budget, (int, float)):
-        budget_max = float(budget)
-        max_price = budget_max * 1.15  # budget + 15%
-        budget_text = f"Budget massimo: €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini fino a €{max_price:.2f})."
+    # Price constraint (max_price is already calculated - model should not see original budget)
+    price_constraint_text = ""
+    if max_price is not None:
+        price_constraint_text = f"Limite massimo prezzo: €{max_price:.2f} per bottiglia."
     else:
-        budget_labels = {
-            'base': 'Budget base: fino a €20 per bottiglia',
-            'spinto': 'Budget spinto: €20-40 per bottiglia',
-            'low': 'Budget base: fino a €20 per bottiglia',
-            'medium': 'Budget spinto: €20-40 per bottiglia',
-            'high': 'Nessuna restrizione di budget'
-        }
-        budget_text = budget_labels.get(budget, 'Nessuna restrizione di budget')
-        # Extract numeric budget for single label mode
-        if journey_pref == 'single':
-            if budget == 'base' or budget == 'low':
-                budget_max = 20.0
-                max_price = budget_max * 1.15  # 23.0
-                budget_text += f" La carta è già filtrata per includere vini fino a €{max_price:.2f}."
-            elif budget == 'spinto' or budget == 'medium':
-                budget_max = 40.0
-                max_price = budget_max * 1.15  # 46.0
-                budget_text += f" La carta è già filtrata per includere vini fino a €{max_price:.2f}."
+        price_constraint_text = "Nessuna restrizione di prezzo."
     
     # Determine output format
     if journey_pref == 'journey':
@@ -535,14 +514,13 @@ Devi restituire un JSON con questa struttura:
 
 IMPORTANTE: 
 - Devi rankare TUTTI i vini disponibili nella carta, non solo alcuni
-- Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino) in base SOLO alle caratteristiche organolettiche e all'abbinamento. IGNORA COMPLETAMENTE il prezzo/budget.
+- Il rank 1 è il vino migliore per i parametri del cliente (piatti, tipo vino) in base SOLO alle caratteristiche organolettiche e all'abbinamento.
 - L'ultimo rank (N) è il vino meno adatto per caratteristiche e abbinamenti
 - Esattamente UN vino deve avere "rank": 1 e "best": true (il miglior consiglio)
 - Tutti gli altri devono avere "best": false
 - Ogni vino deve avere un "rank" numerico sequenziale (1, 2, 3, ..., N)
-- La "reason" deve spiegare il ranking SOLO in base a: caratteristiche organolettiche (profumi, sapori, struttura, corpo, tannini, acidità) e abbinamento con i piatti specifici. NON menzionare prezzo o budget.
+- La "reason" deve spiegare il ranking SOLO in base a: caratteristiche organolettiche (profumi, sapori, struttura, corpo, tannini, acidità) e abbinamento con i piatti specifici.
 - **ISPIRATI ALLA DESCRIZIONE**: Quando scrivi la "reason" per un vino, ispirati alla sua "Descrizione" se presente nella carta. La descrizione contiene informazioni specifiche sulle caratteristiche del vino che devi utilizzare per spiegare il ranking e l'abbinamento. Usa le informazioni della descrizione per arricchire la motivazione.
-- La carta è già pre-filtrata per fascia di prezzo, quindi IGNORA COMPLETAMENTE il budget/prezzo nel ranking e nelle motivazioni.
 - NON saltare vini: ranka TUTTI i vini presenti nella lista"""
     
     prompt = f"""⚠️⚠️⚠️ REGOLA CRITICA E OBBLIGATORIA ⚠️⚠️⚠️
@@ -572,7 +550,7 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 
 **Modalità:** {"Percorso di vini" if journey_pref == 'journey' else "Singola etichetta con alternative"}
 
-**Budget:** {budget_text}
+**Limite prezzo:** {price_constraint_text}
 
 {featured_wines_context}
 
@@ -588,26 +566,24 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 
 2. **RISPETTA IL TIPO VINO**: Se il cliente ha specificato un tipo (rosso, bianco, ecc.), seleziona solo vini di quel tipo. Se "any", puoi scegliere qualsiasi tipo.
 
-3. **IGNORA IL BUDGET**: La carta è già pre-filtrata per fascia di prezzo appropriata. IGNORA COMPLETAMENTE il budget/prezzo nel ranking e nelle motivazioni. Concentrati SOLO su caratteristiche organolettiche e abbinamenti.
-
-4. **ABBINAMENTI**: Seleziona vini che si abbinano bene con i piatti ordinati:
+3. **ABBINAMENTI**: Seleziona vini che si abbinano bene con i piatti ordinati:
    - Pesce → bianchi, rosati leggeri, bollicine
    - Carne rossa → rossi strutturati
    - Primi → vini versatili
    - MAI dessert wine con piatti salati
 
-5. **RISPETTA LA DESCRIZIONE E L'UVAGGIO**: 
+4. **RISPETTA LA DESCRIZIONE E L'UVAGGIO**: 
    - Quando un vino ha una "Descrizione" nella carta, DEVI rispettarla completamente. La descrizione contiene informazioni specifiche sul vino che DEVI considerare nelle tue selezioni e motivazioni.
    - **ISPIRATI ALLA DESCRIZIONE PER LE MOTIVAZIONI**: Quando scrivi la "reason" per un vino, DEVI ispirarti alla sua "Descrizione" se presente. La descrizione contiene le caratteristiche organolettiche, lo stile, e le note di degustazione del vino. Usa queste informazioni per spiegare perché il vino si abbina bene ai piatti o rispetta le preferenze del cliente.
    - Quando un vino ha un "Uvaggio" (grape_variety) nella carta, DEVI considerarlo nelle tue selezioni e motivazioni.
    - NON inventare caratteristiche che non sono nella descrizione o nell'uvaggio.
    - Usa la descrizione e l'uvaggio per spiegare perché un vino si abbina bene ai piatti o rispetta le preferenze del cliente.
 
-6. **RANKING COMPLETO**:
-   - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N) in base SOLO alle caratteristiche organolettiche e all'abbinamento con i piatti. IGNORA COMPLETAMENTE il budget/prezzo. Il rank 1 è il vino migliore per caratteristiche e abbinamenti. L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking SOLO in base a caratteristiche e abbinamenti, SENZA menzionare prezzo o budget.
+5. **RANKING COMPLETO**:
+   - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N) in base SOLO alle caratteristiche organolettiche e all'abbinamento con i piatti. Il rank 1 è il vino migliore per caratteristiche e abbinamenti. L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking SOLO in base a caratteristiche e abbinamenti.
    - Percorso: ESATTAMENTE 2-3 percorsi, ognuno con esattamente {f"{bottles_count} vini" if journey_pref == 'journey' and bottles_count else "2-3 vini"} per percorso. NON generare più di 3 percorsi, NON generare meno di 2 percorsi.
 
-7. **VINI IN EVIDENZA (PRIORITÀ STRATEGICA)**: 
+6. **VINI IN EVIDENZA (PRIORITÀ STRATEGICA)**: 
    {featured_wines_priority_text}
 
 {format_spec}
@@ -667,8 +643,12 @@ def get_communication_prompt(
             selection_text += f"### {journey.get('name')}\n"
             selection_text += f"Motivo: {journey.get('reason', '')}\n"
             selection_text += "Vini:\n"
-            for wine in journey.get('wines', []):
+            # Solo i primi 2 vini per mantenere il messaggio breve
+            wines_list = journey.get('wines', [])
+            for wine in wines_list[:2]:
                 selection_text += f"- {wine.get('name')} - €{wine.get('price')}\n"
+            if len(wines_list) > 2:
+                selection_text += f"- ... e altri {len(wines_list) - 2} vini\n"
             selection_text += "\n"
     
     # Build dish context
@@ -695,7 +675,7 @@ Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini pri
 
 2. **FORMATO**:
    - Singola etichetta: "Il mio consiglio: [Nome Vino] - [breve motivo]. Un'alternativa: [Nome Vino] - [breve motivo]. [Nome Vino] - [breve motivo]."
-   - Percorso: Presenta brevemente il percorso (1 frase), poi elenca i vini con nome e breve motivo (1 frase per vino)
+   - Percorso: Presenta brevemente il percorso (1 frase), poi elenca SOLO i primi 2 vini con nome (senza motivo dettagliato). Esempio: "Ecco i miei percorsi per voi. [Nome Percorso]: [Nome Vino 1], [Nome Vino 2] e altri vini. [Nome Percorso 2]: [Nome Vino 1], [Nome Vino 2] e altri vini."
 
 3. **USA I NOMI ESATTI**: Usa sempre i nomi ESATTI dei vini dalla selezione
 
@@ -704,8 +684,9 @@ Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini pri
 5. **SOLO I PRIMI 3 VINI**: Per singola etichetta, menziona solo i primi 3 vini (best=true e i successivi 2). Gli altri sono disponibili nelle card.
 
 **IMPORTANTE**: 
-- SII BREVE: 50-80 parole totali massimo
-- NON essere descrittivo: solo nome + motivo breve
+- SII BREVE: 50-80 parole totali massimo per singola etichetta, 60-100 parole per percorsi
+- PER PERCORSI: Solo nomi dei vini principali (primi 2), senza motivi dettagliati. Le descrizioni complete sono nelle card.
+- NON essere descrittivo: solo nome + motivo breve (singola etichetta) o solo nomi (percorsi)
 - NON espandere le reason: usa direttamente i motivi forniti
 - Le card mostrano i dettagli completi - il messaggio serve solo per introdurre rapidamente i vini
 

@@ -8,6 +8,7 @@ from app.models.session import Session
 from app.models.message import Message
 from app.models.menu_item import MenuItem
 from app.models.wine_proposal import WineProposal
+from app.models.access_token import AccessToken
 
-__all__ = ['Venue', 'Product', 'User', 'Session', 'Message', 'MenuItem', 'WineProposal']
+__all__ = ['Venue', 'Product', 'User', 'Session', 'Message', 'MenuItem', 'WineProposal', 'AccessToken']
 

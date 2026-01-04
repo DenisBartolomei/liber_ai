@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { chatService } from '../services/api'
 
-export function useChat(venueSlug = null, mode = 'b2c') {
+export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -30,12 +30,12 @@ export function useChat(venueSlug = null, mode = 'b2c') {
     }
   }, [venueSlug])
 
-  // Initialize session for B2C mode
+  // Initialize session for B2C mode (only if accessToken is available)
   useEffect(() => {
-    if (mode === 'b2c' && venueSlug && !sessionToken) {
+    if (mode === 'b2c' && venueSlug && accessToken && !sessionToken) {
       initializeSession()
     }
-  }, [venueSlug, mode, sessionToken, initializeSession])
+  }, [venueSlug, mode, accessToken, sessionToken, initializeSession])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

@@ -22,6 +22,7 @@ import { useChat } from '../hooks/useChat'
 import { ThinkingMessages } from '../components/ui/LoadingSpinner'
 import WineCard from '../components/chat/WineCard'
 import AllWinesModal from '../components/chat/AllWinesModal'
+import JourneyDetailsModal from '../components/chat/JourneyDetailsModal'
 import Logo from '../components/ui/Logo'
 
 // Category labels for display
@@ -79,6 +80,11 @@ function CustomerChat() {
   const [venueLoading, setVenueLoading] = useState(true)
   const [venueError, setVenueError] = useState(null)
   
+  // Access token state
+  const [accessToken, setAccessToken] = useState(null)
+  const [tokenLoading, setTokenLoading] = useState(true)
+  const [tokenError, setTokenError] = useState(null)
+  
   // Setup flow state - 6 steps: intro -> dishes -> guests -> wineType -> journey -> budget -> chat
   const [flowStep, setFlowStep] = useState('intro')
   const [selectedDishes, setSelectedDishes] = useState([])
@@ -98,6 +104,7 @@ function CustomerChat() {
   // Track selected wines/journeys per message
   const [selectedWineByMessage, setSelectedWineByMessage] = useState({}) // { messageId: wineId }
   const [selectedJourneyByMessage, setSelectedJourneyByMessage] = useState({}) // { messageId: journeyId }
+  const [selectedJourneyDetails, setSelectedJourneyDetails] = useState({}) // { messageId: journeyId } - which journey shows details modal
   
   // Feedback state
   const [showFeedback, setShowFeedback] = useState(false)
@@ -126,6 +133,61 @@ function CustomerChat() {
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef(null)
   
+  // Get or create access token on mount
+  useEffect(() => {
+    const getOrCreateAccessToken = async () => {
+      if (!venueSlug) {
+        setTokenLoading(false)
+        return
+      }
+      
+      const storageKey = `access_token_${venueSlug}`
+      const expiresKey = `access_token_${venueSlug}_expires`
+      
+      // Check localStorage for existing token
+      const storedToken = localStorage.getItem(storageKey)
+      const storedExpiry = localStorage.getItem(expiresKey)
+      
+      // Verify if stored token is still valid
+      if (storedToken && storedExpiry) {
+        const expiryDate = new Date(storedExpiry)
+        if (expiryDate > new Date()) {
+          // Token still valid, use it
+          setAccessToken(storedToken)
+          setTokenLoading(false)
+          return
+        } else {
+          // Token expired, remove it
+          localStorage.removeItem(storageKey)
+          localStorage.removeItem(expiresKey)
+        }
+      }
+      
+      // Create new token
+      try {
+        setTokenLoading(true)
+        const response = await chatService.createStartToken(venueSlug)
+        const newToken = response.data.access_token
+        const expiresAt = response.data.expires_at
+        
+        setAccessToken(newToken)
+        setTokenError(null)
+        
+        // Save to localStorage
+        localStorage.setItem(storageKey, newToken)
+        localStorage.setItem(expiresKey, expiresAt)
+        
+        setTokenLoading(false)
+      } catch (error) {
+        console.error('Error creating access token:', error)
+        setTokenError(error.response?.data?.message || 'Errore nel recupero del token di accesso')
+        setTokenLoading(false)
+      }
+    }
+    
+    getOrCreateAccessToken()
+  }, [venueSlug])
+
   const { 
     messages, 
     isLoading, 
@@ -137,7 +199,7 @@ function CustomerChat() {
     sessionToken,
     addAssistantMessage,
     fetchWineRankings
-  } = useChat(venueSlug, 'b2c')
+  } = useChat(venueSlug, 'b2c', accessToken)
 
   useEffect(() => {
     loadVenueAndMenu()
@@ -441,6 +503,69 @@ function CustomerChat() {
       sendMessage(inputValue)
       setInputValue('')
     }
+  }
+
+  // Show token error if any
+  if (tokenError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
+            Errore di Accesso
+          </h2>
+          <p className="text-cream-100/70 mb-6">{tokenError}</p>
+          <p className="text-sm text-cream-100/50 mb-6">
+            Scansiona nuovamente il QR code per ottenere un nuovo token di accesso.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
+          >
+            Ricarica Pagina
+          </button>
+        </div>
+      </div>
+    )
+  }
+  
+  // Show loading if token is still loading
+  if (tokenLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center">
+        <div className="text-center">
+          <Logo size="xl" animate className="mx-auto mb-4" />
+          <p className="text-cream-100/70">Caricamento...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  // Don't show venue if token is not available
+  if (!accessToken) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
+            Token di Accesso Richiesto
+          </h2>
+          <p className="text-cream-100/70 mb-6">
+            Devi scansionare il QR code per accedere al servizio.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
+          >
+            Ricarica Pagina
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // Error state for venue loading
@@ -1204,35 +1329,56 @@ function CustomerChat() {
                                   : 'border-burgundy-100 bg-white'
                               }`}
                             >
-                              <div className="flex items-start justify-between mb-3">
-                                <div>
+                              <div className="flex items-start justify-between mb-3 gap-3">
+                                <div className="flex-1">
                                   <h4 className="font-display font-semibold text-burgundy-900 text-base md:text-lg break-words">
                                     {journey.name || `Percorso ${journeyIdx + 1}`}
                                   </h4>
-                                  {(journey.reason || journey.description) && (
-                                    <p className="text-xs md:text-sm text-burgundy-600 mt-1 break-words">{journey.reason || journey.description}</p>
-                                  )}
                                 </div>
-                                <button
-                                  onClick={() => setSelectedJourneyByMessage(prev => ({
-                                    ...prev,
-                                    [message.id]: journey.id
-                                  }))}
-                                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                    selectedJourneyByMessage[message.id] === journey.id
-                                      ? 'bg-gold-500 text-burgundy-900'
-                                      : 'bg-burgundy-700 text-cream-50 hover:bg-burgundy-600'
-                                  }`}
-                                >
-                                  {selectedJourneyByMessage[message.id] === journey.id ? 'Selezionato' : 'Seleziona questo percorso'}
-                                </button>
+                                <div className="flex gap-2 flex-shrink-0">
+                                  {(journey.reason || journey.description) && (
+                                    <button
+                                      onClick={() => setSelectedJourneyDetails(prev => ({
+                                        ...prev,
+                                        [message.id]: journey.id
+                                      }))}
+                                      className="px-3 py-2 rounded-lg font-medium text-sm transition-colors bg-burgundy-100 text-burgundy-700 hover:bg-burgundy-200"
+                                    >
+                                      Dettagli percorso
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setSelectedJourneyByMessage(prev => ({
+                                      ...prev,
+                                      [message.id]: journey.id
+                                    }))}
+                                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                                      selectedJourneyByMessage[message.id] === journey.id
+                                        ? 'bg-gold-500 text-burgundy-900'
+                                        : 'bg-burgundy-700 text-cream-50 hover:bg-burgundy-600'
+                                    }`}
+                                  >
+                                    {selectedJourneyByMessage[message.id] === journey.id ? 'Selezionato' : 'Seleziona questo percorso'}
+                                  </button>
+                                </div>
                               </div>
+                              
                               
                               <div className="space-y-2">
                                 {journey.wines && journey.wines.map((wine, wineIdx) => (
                                   <WineCard key={wine.id || wineIdx} wine={wine} />
                                 ))}
                               </div>
+                              
+                              {/* Journey Details Modal */}
+                              <JourneyDetailsModal
+                                journey={journey}
+                                isOpen={selectedJourneyDetails[message.id] === journey.id}
+                                onClose={() => setSelectedJourneyDetails(prev => ({
+                                  ...prev,
+                                  [message.id]: null
+                                }))}
+                              />
                             </div>
                           ))}
                           
