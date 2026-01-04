@@ -88,12 +88,26 @@ class FineTunedWineSelector:
         messages.append({"role": "user", "content": user_message})
         
         try:
+            # Calculate dynamic token limit based on number of wines
+            # Each wine requires ~150 tokens (ID, name, price, reason)
+            estimated_tokens_per_wine = 150
+            base_tokens = 1000  # For JSON structure and prompt overhead
+            max_tokens = max(4000, len(all_wines) * estimated_tokens_per_wine + base_tokens)
+            # Reasonable maximum limit: 16000 tokens (approximately 100 wines)
+            max_tokens = min(max_tokens, 16000)
+            
+            logger.info(
+                f"Calling fine-tuned model with {len(all_wines)} wines, "
+                f"max_completion_tokens={max_tokens} "
+                f"(estimated: {len(all_wines)} wines × {estimated_tokens_per_wine} tokens + {base_tokens} base)"
+            )
+            
             # Call fine-tuned model with JSON response format
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent selections
-                max_completion_tokens=4000,  # Increased to support ranking of all wines in large catalogs
+                max_completion_tokens=max_tokens,  # Dynamic limit based on number of wines
                 response_format={"type": "json_object"}
             )
             
@@ -425,6 +439,42 @@ class FineTunedWineSelector:
         # If no wines found but we have wines in DB, log warning
         if not validated['wines'] and not validated['journeys'] and all_wines:
             logger.warning("Fine-tuned model returned no valid wines, but wines are available in DB")
+        
+        # CRITICAL VALIDATION: Verify that all wines were ranked (single mode only)
+        if journey_preference == 'single' and all_wines:
+            expected_wine_count = len(all_wines)
+            actual_wine_count = len(validated['wines'])
+            
+            if actual_wine_count < expected_wine_count:
+                missing_count = expected_wine_count - actual_wine_count
+                missing_percentage = (missing_count / expected_wine_count) * 100
+                
+                logger.warning(
+                    f"CRITICAL: Model returned only {actual_wine_count}/{expected_wine_count} wines "
+                    f"({missing_percentage:.1f}% missing). This is a business-critical issue."
+                )
+                
+                if missing_percentage > 20:
+                    logger.error(
+                        f"CRITICAL ERROR: More than 20% of wines missing from ranking "
+                        f"({missing_count} out of {expected_wine_count} wines missing). "
+                        f"This is a critical business issue - customers are not seeing all available wines. "
+                        f"Expected {expected_wine_count} wines, got {actual_wine_count}."
+                    )
+                elif missing_percentage > 0:
+                    logger.warning(
+                        f"WARNING: {missing_count} wines ({missing_percentage:.1f}%) missing from ranking. "
+                        f"Model should return all {expected_wine_count} wines."
+                    )
+            elif actual_wine_count == expected_wine_count:
+                logger.info(
+                    f"✓ Validation passed: Model returned all {actual_wine_count} wines as expected"
+                )
+            else:
+                logger.warning(
+                    f"Unexpected: Model returned {actual_wine_count} wines but only {expected_wine_count} were passed. "
+                    f"This should not happen."
+                )
         
         return validated
 

@@ -498,6 +498,22 @@ function DashboardAnalytics() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Renewal date badge */}
+                    {venue.conversation_limit_renewal_date && (
+                      <div className="mt-3 pt-3 border-t border-burgundy-200">
+                        <div className="flex items-center gap-2 text-sm text-burgundy-600">
+                          <Calendar className="w-4 h-4 text-burgundy-500" />
+                          <span className="font-medium">
+                            Si rinnova il {new Date(venue.conversation_limit_renewal_date).toLocaleDateString('it-IT', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="p-4 bg-cream-50 rounded-lg border border-burgundy-200">

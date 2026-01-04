@@ -245,9 +245,15 @@ class AIAgentService:
             is_available=True
         )
         
-        # Filter by wine type
+        # Filter by wine type - CRITICAL: Do NOT filter if wine_type == 'any' (lascia fare a te)
         if wine_type_pref and wine_type_pref != 'any':
             query = query.filter_by(type=wine_type_pref)
+            logger.info(f"Applied wine type filter: {wine_type_pref}")
+        else:
+            logger.info(
+                f"NO wine type filter applied (wine_type='{wine_type_pref}' means 'any' - all types included). "
+                f"This is correct behavior when user selects 'lascia fare a te'."
+            )
         
         # Filter by budget (0 to budget + 15%)
         budget_max = None
@@ -311,6 +317,26 @@ class AIAgentService:
             # Get featured wines from venue preferences
             featured_wines = venue.get_featured_wines() if hasattr(venue, 'get_featured_wines') else []
             
+            # Log detailed information about wines being passed to model
+            logger.info(
+                f"Passing {len(all_wines)} filtered wines to fine-tuned model. "
+                f"Filters applied: type={wine_type_pref} (any={wine_type_pref == 'any'}, "
+                f"no_type_filter={'YES' if wine_type_pref == 'any' else 'NO'}), "
+                f"budget_max={budget_max if budget_max else 'none'}, "
+                f"price_range=0-{max_price if budget_max else 'unlimited'}"
+            )
+            
+            # Log wine type distribution for debugging
+            if all_wines:
+                wine_types = {}
+                for wine in all_wines:
+                    wine_type = wine.get('type', 'unknown')
+                    wine_types[wine_type] = wine_types.get(wine_type, 0) + 1
+                logger.info(
+                    f"Wine type distribution in filtered set: {wine_types}. "
+                    f"Total wines: {len(all_wines)}"
+                )
+            
             fine_tuned_selector = FineTunedWineSelector()
             wine_selection = fine_tuned_selector.select_wines(
                 venue_name=venue.name,
@@ -322,6 +348,26 @@ class AIAgentService:
                 user_message=user_message,
                 featured_wines=featured_wines
             )
+            
+            # Log detailed information about wines returned from model
+            wines_returned = len(wine_selection.get('wines', []))
+            journeys_returned = len(wine_selection.get('journeys', []))
+            
+            logger.info(
+                f"Fine-tuned model returned {wines_returned} wines and {journeys_returned} journeys "
+                f"from {len(all_wines)} wines passed. "
+                f"Match: {wines_returned}/{len(all_wines)} "
+                f"({(wines_returned/len(all_wines)*100) if all_wines else 0:.1f}%)"
+            )
+            
+            if wines_returned < len(all_wines):
+                missing = len(all_wines) - wines_returned
+                missing_percentage = (missing / len(all_wines) * 100) if all_wines else 0
+                logger.warning(
+                    f"CRITICAL: Model returned fewer wines ({wines_returned}) than passed ({len(all_wines)}). "
+                    f"Missing {missing} wines ({missing_percentage:.1f}%). "
+                    f"This is a business-critical issue."
+                )
             
             # Check if we got valid selections
             has_wines = wine_selection.get('wines') and len(wine_selection['wines']) > 0

@@ -14,7 +14,7 @@ import { useAuth } from '../../context/AuthContext'
 import Logo from '../ui/Logo'
 
 const navItems = [
-  { path: '/dashboard', icon: BarChart3, label: 'Analytics', end: true },
+  { path: '/dashboard', icon: BarChart3, label: 'Analisi', end: true },
   { path: '/dashboard/products', icon: Package, label: 'Carta Vini' },
   { path: '/dashboard/settings', icon: Settings, label: 'Impostazioni' },
 ]

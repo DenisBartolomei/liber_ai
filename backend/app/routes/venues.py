@@ -85,6 +85,17 @@ def update_venue(venue_id):
         # Remove from data to avoid double processing
         data.pop('featured_wines')
     
+    # Handle annual_conversation_limit separately to initialize start date
+    if 'annual_conversation_limit' in data:
+        new_limit = data.get('annual_conversation_limit')
+        # If limit is being set and start date is not set, initialize it
+        if new_limit is not None and venue.annual_conversation_limit_start_date is None:
+            venue.initialize_conversation_limit_period()
+            logger.info(f"Initialized conversation limit start date for venue {venue_id}")
+        # Update the limit
+        venue.annual_conversation_limit = new_limit
+        data.pop('annual_conversation_limit')
+    
     # Update allowed fields
     updatable_fields = [
         'name', 'description', 'cuisine_type', 'menu_style', 

@@ -544,7 +544,19 @@ IMPORTANTE:
 - La carta è già pre-filtrata per fascia di prezzo, quindi IGNORA COMPLETAMENTE il budget/prezzo nel ranking e nelle motivazioni.
 - NON saltare vini: ranka TUTTI i vini presenti nella lista"""
     
-    prompt = f"""Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_name}.
+    prompt = f"""⚠️⚠️⚠️ REGOLA CRITICA E OBBLIGATORIA ⚠️⚠️⚠️
+
+DEVI RESTITUIRE TUTTI I VINI DELLA LISTA SOTTO, SENZA ECCEZIONI.
+
+Se la lista contiene 20 vini, il tuo JSON deve contenere esattamente 20 vini rankati.
+Se la lista contiene 50 vini, il tuo JSON deve contenere esattamente 50 vini rankati.
+NON puoi saltare vini. NON puoi restituire solo i migliori 3 o 5.
+
+Il numero di vini nel JSON deve corrispondere ESATTAMENTE al numero di vini nella lista "CARTA DEI VINI DISPONIBILI".
+
+Questa è una regola CRITICA: se restituisci meno vini di quanti sono nella lista, il sistema non funziona correttamente e causa perdita di vendite.
+
+Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_name}.
 
 ## CONTESTO
 

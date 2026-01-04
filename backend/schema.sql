@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS venues (
     
     -- Conversation limit
     annual_conversation_limit INTEGER DEFAULT NULL,  -- NULL = unlimited
+    annual_conversation_limit_start_date TIMESTAMP DEFAULT NULL,  -- Date when the annual limit period started
     
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
