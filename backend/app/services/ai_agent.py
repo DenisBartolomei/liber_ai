@@ -271,21 +271,43 @@ class AIAgentService:
         
         # Use load_only to select only core columns that exist in all databases
         # This avoids errors if optional columns (color, aromas, etc.) don't exist
-        all_products = query.options(
-            db.load_only(
-                Product.id,
-                Product.venue_id,
-                Product.name,
-                Product.type,
-                Product.price,
-                Product.cost_price,
-                Product.margin,
-                Product.is_available,
-                Product.image_url,
-                Product.created_at,
-                Product.updated_at
-            )
-        ).order_by(Product.type, Product.name).all()
+        # Include description and grape_variety for fine-tuned model context (if columns exist)
+        try:
+            # Try to include description and grape_variety if they exist
+            all_products = query.options(
+                db.load_only(
+                    Product.id,
+                    Product.venue_id,
+                    Product.name,
+                    Product.type,
+                    Product.price,
+                    Product.cost_price,
+                    Product.margin,
+                    Product.is_available,
+                    Product.image_url,
+                    Product.description,  # Include for fine-tuned model
+                    Product.grape_variety,  # Include for fine-tuned model
+                    Product.created_at,
+                    Product.updated_at
+                )
+            ).order_by(Product.type, Product.name).all()
+        except Exception:
+            # If description or grape_variety columns don't exist, load without them
+            all_products = query.options(
+                db.load_only(
+                    Product.id,
+                    Product.venue_id,
+                    Product.name,
+                    Product.type,
+                    Product.price,
+                    Product.cost_price,
+                    Product.margin,
+                    Product.is_available,
+                    Product.image_url,
+                    Product.created_at,
+                    Product.updated_at
+                )
+            ).order_by(Product.type, Product.name).all()
         
         # Convert to dict format
         all_wines = [p.to_dict() for p in all_products]

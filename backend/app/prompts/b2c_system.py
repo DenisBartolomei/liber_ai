@@ -541,6 +541,7 @@ IMPORTANTE:
 - Tutti gli altri devono avere "best": false
 - Ogni vino deve avere un "rank" numerico sequenziale (1, 2, 3, ..., N)
 - La "reason" deve spiegare il ranking SOLO in base a: caratteristiche organolettiche (profumi, sapori, struttura, corpo, tannini, acidità) e abbinamento con i piatti specifici. NON menzionare prezzo o budget.
+- **ISPIRATI ALLA DESCRIZIONE**: Quando scrivi la "reason" per un vino, ispirati alla sua "Descrizione" se presente nella carta. La descrizione contiene informazioni specifiche sulle caratteristiche del vino che devi utilizzare per spiegare il ranking e l'abbinamento. Usa le informazioni della descrizione per arricchire la motivazione.
 - La carta è già pre-filtrata per fascia di prezzo, quindi IGNORA COMPLETAMENTE il budget/prezzo nel ranking e nelle motivazioni.
 - NON saltare vini: ranka TUTTI i vini presenti nella lista"""
     
@@ -597,6 +598,7 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 
 5. **RISPETTA LA DESCRIZIONE E L'UVAGGIO**: 
    - Quando un vino ha una "Descrizione" nella carta, DEVI rispettarla completamente. La descrizione contiene informazioni specifiche sul vino che DEVI considerare nelle tue selezioni e motivazioni.
+   - **ISPIRATI ALLA DESCRIZIONE PER LE MOTIVAZIONI**: Quando scrivi la "reason" per un vino, DEVI ispirarti alla sua "Descrizione" se presente. La descrizione contiene le caratteristiche organolettiche, lo stile, e le note di degustazione del vino. Usa queste informazioni per spiegare perché il vino si abbina bene ai piatti o rispetta le preferenze del cliente.
    - Quando un vino ha un "Uvaggio" (grape_variety) nella carta, DEVI considerarlo nelle tue selezioni e motivazioni.
    - NON inventare caratteristiche che non sono nella descrizione o nell'uvaggio.
    - Usa la descrizione e l'uvaggio per spiegare perché un vino si abbina bene ai piatti o rispetta le preferenze del cliente.

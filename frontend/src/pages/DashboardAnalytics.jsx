@@ -371,7 +371,7 @@ function DashboardAnalytics() {
         <div>
           <h1 className="font-display text-3xl font-bold text-burgundy-900 flex items-center gap-3">
             <BarChart3 className="w-8 h-8 text-gold-500" />
-            Analytics
+            Analisi
           </h1>
           <p className="text-burgundy-600 mt-1">
             Monitora le performance del tuo sommelier AI

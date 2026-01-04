@@ -77,7 +77,7 @@ function DashboardLayout() {
           )}
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          <nav className="px-4 py-6 space-y-1 overflow-y-auto">
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
@@ -100,7 +100,7 @@ function DashboardLayout() {
             ))}
           </nav>
 
-          {/* User section */}
+          {/* User section - positioned right after menu, not at bottom */}
           <div className="p-4 border-t border-burgundy-800">
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="w-10 h-10 bg-burgundy-700 rounded-full flex items-center justify-center">
