@@ -17,18 +17,24 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
       return
     }
     
+    // Ensure accessToken is available before creating session
+    if (!accessToken) {
+      console.error('Access token is required to create session')
+      return
+    }
+    
     isInitializingRef.current = true
     try {
-      const response = await chatService.createSession(venueSlug)
+      const response = await chatService.createSession(venueSlug, accessToken)
       setSessionToken(response.data.session_token)
     } catch (err) {
       console.error('Failed to create session:', err)
-      // Create local session token for fallback
-      setSessionToken(`local-${Date.now()}`)
+      setError(err.response?.data?.message || 'Errore nella creazione della sessione')
+      // Don't create fallback token - let user retry
     } finally {
       isInitializingRef.current = false
     }
-  }, [venueSlug])
+  }, [venueSlug, accessToken])
 
   // Initialize session for B2C mode (only if accessToken is available)
   useEffect(() => {
@@ -49,6 +55,21 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
 
   const sendMessage = useCallback(async (content, initialContext = null, options = {}) => {
     if (!content.trim()) return
+
+    // Check if session token exists (required for B2C mode)
+    if (mode === 'b2c' && !sessionToken) {
+      const errorMessage = 'Sessione non inizializzata. Attendi qualche istante e riprova.'
+      setError(errorMessage)
+      const errorAssistantMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `⚠️ ${errorMessage}`,
+        isError: true,
+        timestamp: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, errorAssistantMessage])
+      return
+    }
 
     // Use provided context or stored context
     const messageContext = initialContext || context
@@ -112,6 +133,8 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
         errorMessage = err.response.data.message
       } else if (err.response?.status === 401) {
         errorMessage = 'Sessione scaduta. Ricarica la pagina.'
+      } else if (err.response?.status === 404) {
+        errorMessage = 'Sessione non trovata. Ricarica la pagina per creare una nuova sessione.'
       } else if (err.response?.status === 500) {
         errorMessage = 'Errore del server. Il servizio AI potrebbe non essere configurato correttamente.'
       } else if (err.response?.status === 503) {
