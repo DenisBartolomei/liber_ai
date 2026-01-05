@@ -70,6 +70,59 @@ def track_wine_proposals(session_id, message_id, response_data):
         response_data: Response dict from AI agent with 'mode', 'wine_ids', 'journeys', 'wines'
     """
     try:
+        # Get filter parameters from metadata
+        gathered_info = response_data.get('metadata', {}).get('gathered_info', {})
+        wine_type_pref = gathered_info.get('wine_type', 'any')
+        budget_pref = gathered_info.get('budget')
+        
+        # Calculate max_price from budget
+        max_price = None
+        if budget_pref and budget_pref != 'nolimit':
+            if isinstance(budget_pref, (int, float)):
+                budget_max = float(budget_pref)
+            elif budget_pref == 'base' or budget_pref == 'low':
+                budget_max = 20.0
+            elif budget_pref == 'spinto' or budget_pref == 'medium':
+                budget_max = 40.0
+            else:
+                budget_max = None
+            
+            if budget_max:
+                max_price = budget_max * 1.15  # budget + 15%
+        
+        # Log filter parameters for debugging
+        logger.info(
+            f"Tracking wine proposals with filters: wine_type={wine_type_pref}, max_price={max_price}, "
+            f"mode={response_data.get('mode', 'single')}"
+        )
+        
+        # Helper function to validate wine against filters
+        def wine_passes_filters(product):
+            """Check if product passes type and price filters"""
+            if not product:
+                return False
+            
+            # Check wine type filter
+            if wine_type_pref and wine_type_pref != 'any':
+                product_type = product.type.lower() if product.type else ''
+                if product_type != wine_type_pref.lower():
+                    logger.warning(
+                        f"Product {product.id} ({product.name}) type {product_type} does not match filter {wine_type_pref}. "
+                        f"Filtering out."
+                    )
+                    return False
+            
+            # Check price filter
+            if max_price is not None:
+                product_price = float(product.price) if product.price else 0
+                if product_price > max_price:
+                    logger.warning(
+                        f"Product {product.id} ({product.name}) price {product_price} exceeds max_price {max_price}. "
+                        f"Filtering out."
+                    )
+                    return False
+            
+            return True
         mode = response_data.get('mode', 'single')
         proposal_group_id = str(uuid.uuid4())  # Unique ID for this batch of proposals
         
@@ -90,6 +143,10 @@ def track_wine_proposals(session_id, message_id, response_data):
                     
                     product = Product.query.get(product_id)
                     if not product:
+                        continue
+                    
+                    # Validate product against filters
+                    if not wine_passes_filters(product):
                         continue
                     
                     proposal = WineProposal(
@@ -126,6 +183,10 @@ def track_wine_proposals(session_id, message_id, response_data):
                     if not product:
                         continue
                     
+                    # Validate product against filters
+                    if not wine_passes_filters(product):
+                        continue
+                    
                     # Use explicit rank from JSON, fallback to position if not available
                     wine_rank = wine.get('rank')
                     if wine_rank is None:
@@ -157,6 +218,10 @@ def track_wine_proposals(session_id, message_id, response_data):
                     if not product:
                         continue
                     
+                    # Validate product against filters
+                    if not wine_passes_filters(product):
+                        continue
+                    
                     # Use explicit rank from JSON if available, otherwise use counter
                     wine_rank = wine.get('rank')
                     if wine_rank is None:
@@ -182,6 +247,10 @@ def track_wine_proposals(session_id, message_id, response_data):
                 for product_id in wine_ids:
                     product = Product.query.get(product_id)
                     if not product:
+                        continue
+                    
+                    # Validate product against filters
+                    if not wine_passes_filters(product):
                         continue
                     
                     proposal = WineProposal(
