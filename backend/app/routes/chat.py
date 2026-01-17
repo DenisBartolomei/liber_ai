@@ -849,8 +849,8 @@ def send_message():
             is_opening = response.get('metadata', {}).get('is_opening', False)
             
             if is_opening:
-                # Opening message fallback - should not mention recommendations
-                message_content = "Benvenuti! Sono qui per aiutarvi a scegliere il vino perfetto per la vostra serata. Avete esigenze particolari o preferenze da comunicarmi?"
+                # Opening message fallback - natural welcome without asking for allergies
+                message_content = "Benvenuti! Ho visto le vostre scelte, un menu interessante. Per questi piatti penso a vini freschi e sapidi. Quando volete, procediamo con i suggerimenti."
             elif response.get('wines'):
                 wines = response.get('wines', [])
                 best_wine = next((w for w in wines if w.get('best')), wines[0] if wines else None)

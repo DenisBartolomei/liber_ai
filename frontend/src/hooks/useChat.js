@@ -150,16 +150,26 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
   }, [sessionToken, mode])
 
   const proceedRecommendations = useCallback(async (message = null) => {
-    if (!sessionToken || mode !== 'b2c') return null
+    console.log('[useChat] proceedRecommendations called, sessionToken:', sessionToken ? 'exists' : 'null', 'message:', message)
+    if (!sessionToken || mode !== 'b2c') {
+      console.warn('[useChat] proceedRecommendations: no sessionToken or wrong mode')
+      return null
+    }
     try {
+      console.log('[useChat] Calling chatService.proceedRecommendations...')
       const response = await chatService.proceedRecommendations(sessionToken, message)
+      console.log('[useChat] proceedRecommendations API response:', response.status, response.data)
 
       // If still pending, return status to caller
       if (response.status === 202) {
+        console.log('[useChat] Precompute still pending')
         return response
       }
 
       const messageContent = response.data.message || response.data.content || ''
+      console.log('[useChat] Got recommendation message:', messageContent?.substring(0, 100))
+      console.log('[useChat] Wines count:', response.data.wines?.length, 'Journeys count:', response.data.journeys?.length)
+      
       const assistantMessage = {
         id: response.data.message_id?.toString() || (Date.now() + 1).toString(),
         message_id: response.data.message_id,
@@ -175,9 +185,10 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
       }
 
       setMessages(prev => [...prev, assistantMessage])
+      console.log('[useChat] Added assistant message with wines to state')
       return response
     } catch (err) {
-      console.error('Proceed recommendations error:', err)
+      console.error('[useChat] Proceed recommendations error:', err)
       return null
     }
   }, [sessionToken, mode])

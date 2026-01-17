@@ -380,13 +380,28 @@ function CustomerChat() {
   useEffect(() => {
     if (!messages.length) return
     const lastMessage = messages[messages.length - 1]
+    
+    console.log('[CustomerChat] Last message check:', {
+      role: lastMessage?.role,
+      is_opening: lastMessage?.metadata?.is_opening,
+      wines: lastMessage?.wines?.length,
+      journeys: lastMessage?.journeys?.length
+    })
 
-    if (lastMessage?.role === 'assistant' && lastMessage.metadata?.is_opening) {
-      setShowProceedButton(true)
-    }
-
-    if ((lastMessage?.wines && lastMessage.wines.length > 0) || (lastMessage?.journeys && lastMessage.journeys.length > 0)) {
-      setShowProceedButton(false)
+    // Show button after opening message (or any assistant message without wines/journeys)
+    if (lastMessage?.role === 'assistant') {
+      const hasWines = lastMessage?.wines && lastMessage.wines.length > 0
+      const hasJourneys = lastMessage?.journeys && lastMessage.journeys.length > 0
+      
+      if (hasWines || hasJourneys) {
+        // Recommendations received - hide button
+        console.log('[CustomerChat] Recommendations received, hiding proceed button')
+        setShowProceedButton(false)
+      } else if (lastMessage.metadata?.is_opening || (!hasWines && !hasJourneys && !lastMessage.metadata?.is_clarification)) {
+        // Opening message or simple response without wines - show button
+        console.log('[CustomerChat] Opening or simple message, showing proceed button')
+        setShowProceedButton(true)
+      }
     }
   }, [messages])
   
@@ -413,23 +428,46 @@ function CustomerChat() {
     setProceedLoading(true)
 
     const autoUserText = (userText && userText.trim()) ? userText.trim() : 'Nessuna esigenza, procedi pure'
-    // show as if it was sent by the customer
+    console.log('[CustomerChat] handleProceedSuggestions called with:', autoUserText)
+    
+    // Show the user message in chat
     addUserMessage(autoUserText)
 
-    const response = await proceedRecommendations(autoUserText)
-    if (response?.status === 202) {
-      const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
-      addAssistantMessage(pendingMessage)
-      setPrecomputeStatus('pending')
-      setProceedLoading(false)
-      return
-    }
+    try {
+      console.log('[CustomerChat] Calling proceedRecommendations...')
+      const response = await proceedRecommendations(autoUserText)
+      console.log('[CustomerChat] proceedRecommendations response:', response)
+      
+      if (response?.status === 202) {
+        const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
+        addAssistantMessage(pendingMessage)
+        setPrecomputeStatus('pending')
+        
+        // Auto-retry after 2 seconds
+        setTimeout(async () => {
+          console.log('[CustomerChat] Retrying proceedRecommendations after pending...')
+          const retryResponse = await proceedRecommendations(autoUserText)
+          if (retryResponse && retryResponse.status !== 202) {
+            console.log('[CustomerChat] Retry successful, got recommendations')
+            setShowProceedButton(false)
+          }
+          setProceedLoading(false)
+        }, 2000)
+        return
+      }
 
-    if (!response) {
-      addAssistantMessage('Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.')
+      if (!response) {
+        console.error('[CustomerChat] proceedRecommendations returned null/undefined')
+        addAssistantMessage('Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.')
+      } else {
+        console.log('[CustomerChat] Got recommendations, hiding proceed button')
+        setShowProceedButton(false)
+      }
+    } catch (err) {
+      console.error('[CustomerChat] Error in handleProceedSuggestions:', err)
+      addAssistantMessage('Si è verificato un errore. Riprova.')
     }
-
-    setShowProceedButton(false)
+    
     setProceedLoading(false)
   }
 
@@ -1655,7 +1693,7 @@ function CustomerChat() {
         <div className="border-t border-burgundy-100 bg-white px-4 pt-4">
           <div className="max-w-2xl mx-auto">
             <button
-              onClick={handleProceedSuggestions}
+              onClick={() => handleProceedSuggestions()}
               disabled={proceedLoading}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
