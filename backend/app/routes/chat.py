@@ -798,39 +798,40 @@ def send_message():
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
     
+    # Build the context to use - start with session context, then merge incoming context
+    merged_context = dict(session.context or {})
+    
     # Update session context if provided
     if message_context:
         logger.info(f"Received message_context: dishes={len(message_context.get('dishes', []))}, guest_count={message_context.get('guest_count')}, preferences={message_context.get('preferences', {})}")
         
-        current_context = session.context or {}
-        
         # Merge context intelligently - preserve existing data, update with new
         # Handle nested structures (preferences, dishes)
         if 'preferences' in message_context:
-            if 'preferences' not in current_context:
-                current_context['preferences'] = {}
-            current_context['preferences'].update(message_context['preferences'])
+            if 'preferences' not in merged_context:
+                merged_context['preferences'] = {}
+            merged_context['preferences'].update(message_context['preferences'])
         
         if 'dishes' in message_context:
-            current_context['dishes'] = message_context['dishes']
+            merged_context['dishes'] = message_context['dishes']
         
         if 'guest_count' in message_context:
-            current_context['guest_count'] = message_context['guest_count']
+            merged_context['guest_count'] = message_context['guest_count']
         
         # Update other context fields
         for key, value in message_context.items():
             if key not in ['preferences', 'dishes', 'guest_count']:
-                current_context[key] = value
+                merged_context[key] = value
         
-        session.context = current_context
+        session.context = merged_context
         
         # Extract and save all preferences from context (budget, bottles, and normalize structure)
         session.save_preferences_from_context()
         
         db.session.commit()
-        logger.info(f"Updated session.context: dishes={len(current_context.get('dishes', []))}, guest_count={current_context.get('guest_count')}")
+        logger.info(f"Updated session.context: dishes={len(merged_context.get('dishes', []))}, guest_count={merged_context.get('guest_count')}, preferences={merged_context.get('preferences', {})}")
     else:
-        logger.info(f"No message_context provided, using existing session.context")
+        logger.info(f"No message_context provided, using existing session.context: dishes={len(merged_context.get('dishes', []))}, guest_count={merged_context.get('guest_count')}")
     
     # Get venue for context
     venue = Venue.query.get(session.venue_id)
@@ -846,18 +847,27 @@ def send_message():
         content=message_content
     )
     
-    # Refresh session to get updated message_count AND latest context from DB
+    # Refresh session to get updated message_count
     db.session.refresh(session)
     
-    # Get the latest context from session (includes wines_proposed, filtered_wines from proceed-recommendations)
-    current_context = session.context or {}
-    wines_proposed = current_context.get('wines_proposed', False)
-    has_filtered_wines = bool(current_context.get('filtered_wines', []))
+    # Use the merged_context we already have (don't re-read from session to avoid JSONB serialization issues)
+    # Just check for wines_proposed and filtered_wines from session if they were set by proceed-recommendations
+    if session.context:
+        # Update merged_context with any fields that might have been set by other endpoints
+        if session.context.get('wines_proposed'):
+            merged_context['wines_proposed'] = session.context.get('wines_proposed')
+        if session.context.get('filtered_wines'):
+            merged_context['filtered_wines'] = session.context.get('filtered_wines')
+        if session.context.get('recommendation_state'):
+            merged_context['recommendation_state'] = session.context.get('recommendation_state')
+    
+    wines_proposed = merged_context.get('wines_proposed', False)
+    has_filtered_wines = bool(merged_context.get('filtered_wines', []))
     
     # Log full context for debugging
-    dishes = current_context.get('dishes', [])
-    guest_count = current_context.get('guest_count')
-    preferences = current_context.get('preferences', {})
+    dishes = merged_context.get('dishes', [])
+    guest_count = merged_context.get('guest_count')
+    preferences = merged_context.get('preferences', {})
     
     logger.info(f"Messages endpoint: session={session.id}, wines_proposed={wines_proposed}, has_filtered_wines={has_filtered_wines}")
     logger.info(f"Messages endpoint context: dishes={len(dishes)}, guest_count={guest_count}, preferences={preferences}")
@@ -869,7 +879,7 @@ def send_message():
             session=session,
             venue=venue,
             user_message=message_content,
-            context=current_context  # Pass refreshed context
+            context=merged_context  # Pass the merged context with all data
         )
         
         # Log response structure for debugging
