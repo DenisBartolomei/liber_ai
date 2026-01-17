@@ -202,6 +202,7 @@ function CustomerChat() {
     sessionToken,
     context: chatContext,
     addAssistantMessage,
+    addUserMessage,
     fetchWineRankings,
     precomputeRankings,
     proceedRecommendations
@@ -366,7 +367,7 @@ function CustomerChat() {
 
   useEffect(() => {
     if (flowStep === 'chat' && sessionToken && chatContext && !precomputeStatus) {
-      precomputeRankings().then((res) => {
+      precomputeRankings(chatContext).then((res) => {
         if (res?.status) {
           setPrecomputeStatus(res.status)
         } else {
@@ -407,11 +408,11 @@ function CustomerChat() {
     return "Molto bene! Vorremmo valutare alternative per la selezione. Cos'altro ci proponi?"
   }
 
-  const handleProceedSuggestions = async () => {
+  const handleProceedSuggestions = async (userText = null) => {
     if (proceedLoading) return
     setProceedLoading(true)
 
-    const response = await proceedRecommendations()
+    const response = await proceedRecommendations(userText)
     if (response?.status === 202) {
       const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
       addAssistantMessage(pendingMessage)
@@ -568,6 +569,15 @@ function CustomerChat() {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (inputValue.trim() && !isLoading) {
+      // If we are still in opening stage (CTA visible), treat user input as "proceed"
+      if (showProceedButton) {
+        const text = inputValue.trim()
+        addUserMessage(text)
+        setInputValue('')
+        handleProceedSuggestions(text)
+        return
+      }
+
       sendMessage(inputValue)
       setInputValue('')
     }

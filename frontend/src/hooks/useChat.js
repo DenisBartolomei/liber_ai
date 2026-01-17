@@ -138,10 +138,10 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     }
   }, [sessionToken, mode, context])
 
-  const precomputeRankings = useCallback(async () => {
+  const precomputeRankings = useCallback(async (ctx = null) => {
     if (!sessionToken || mode !== 'b2c') return null
     try {
-      const response = await chatService.precomputeRankings(sessionToken)
+      const response = await chatService.precomputeRankings(sessionToken, ctx)
       return response.data
     } catch (err) {
       console.error('Precompute error:', err)
@@ -149,10 +149,10 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     }
   }, [sessionToken, mode])
 
-  const proceedRecommendations = useCallback(async () => {
+  const proceedRecommendations = useCallback(async (message = null) => {
     if (!sessionToken || mode !== 'b2c') return null
     try {
-      const response = await chatService.proceedRecommendations(sessionToken)
+      const response = await chatService.proceedRecommendations(sessionToken, message)
 
       // If still pending, return status to caller
       if (response.status === 202) {
@@ -181,6 +181,18 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
       return null
     }
   }, [sessionToken, mode])
+
+  const addUserMessage = useCallback((content, options = {}) => {
+    const hidden = options.hidden || false
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: (content || '').toString(),
+      timestamp: new Date().toISOString(),
+      hidden
+    }
+    setMessages(prev => [...prev, userMessage])
+  }, [])
 
   const clearMessages = useCallback(() => {
     setMessages([])
@@ -235,6 +247,7 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     setInitialContext,
     context,
     addAssistantMessage,
+    addUserMessage,
     fetchWineRankings,
     precomputeRankings,
     proceedRecommendations

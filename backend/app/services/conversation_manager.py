@@ -133,6 +133,14 @@ class ConversationManager:
         Returns:
             Created Message object
         """
+        # DB constraint: messages.content is NOT NULL. Ensure we never persist null/empty content.
+        if content is None:
+            content = ""
+        if not isinstance(content, str):
+            content = str(content)
+        if role != 'system' and not content.strip():
+            content = "..."
+
         message = Message(
             session_id=session.id,
             role=role,

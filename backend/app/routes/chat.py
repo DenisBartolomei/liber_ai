@@ -333,6 +333,7 @@ def precompute_rankings():
     """
     data = request.get_json()
     session_token = data.get('session_token')
+    incoming_context = data.get('context')
 
     if not session_token:
         return jsonify({'message': 'session_token è obbligatorio'}), 400
@@ -349,6 +350,32 @@ def precompute_rankings():
         return jsonify({'message': 'Locale non trovato'}), 404
 
     context = session.context or {}
+
+    # If client provides context, persist it immediately so precompute uses the right filters
+    if incoming_context and isinstance(incoming_context, dict):
+        if 'preferences' in incoming_context:
+            if 'preferences' not in context:
+                context['preferences'] = {}
+            if isinstance(incoming_context.get('preferences'), dict):
+                context['preferences'].update(incoming_context['preferences'])
+
+        if 'dishes' in incoming_context:
+            context['dishes'] = incoming_context['dishes']
+
+        if 'guest_count' in incoming_context:
+            context['guest_count'] = incoming_context['guest_count']
+
+        for key, value in incoming_context.items():
+            if key not in ['preferences', 'dishes', 'guest_count']:
+                context[key] = value
+
+        session.context = context
+        try:
+            session.save_preferences_from_context()
+        except Exception:
+            pass
+        db.session.commit()
+
     filters_hash = _compute_filters_hash(venue.id, context)
 
     existing = context.get('precomputed_rankings', {})
@@ -461,6 +488,7 @@ def proceed_recommendations():
     start_time = time.time()
     data = request.get_json()
     session_token = data.get('session_token')
+    user_text = data.get('message')
 
     if not session_token:
         return jsonify({'message': 'session_token è obbligatorio'}), 400
@@ -479,6 +507,18 @@ def proceed_recommendations():
     context = session.context or {}
     precomputed = context.get('precomputed_rankings', {})
     status = precomputed.get('status')
+
+    conversation_manager = ConversationManager()
+    # If the user replied to the opening message, persist their message before proceeding
+    if user_text and isinstance(user_text, str) and user_text.strip():
+        try:
+            conversation_manager.add_message(
+                session=session,
+                role='user',
+                content=user_text.strip()
+            )
+        except Exception as e:
+            logger.warning(f"Proceed: failed to persist user message: {e}")
 
     if status == 'pending':
         return jsonify({
@@ -520,6 +560,7 @@ def proceed_recommendations():
         wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
 
     history = session.get_conversation_history(limit=20)
+    proceed_user_message = user_text.strip() if isinstance(user_text, str) and user_text.strip() else "Procedi al suggerimento"
     try:
         ai_message = communication_service.generate_message(
             venue_name=venue.name,
@@ -528,10 +569,15 @@ def proceed_recommendations():
             context=context,
             gathered_info=gathered_info,
             history=history,
-            user_message="Procedi al suggerimento"
+            user_message=proceed_user_message
         )
     except Exception as e:
         logger.warning(f"Communication model failed in proceed: {e}")
+        ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
+
+    # CommunicationModelService can return None/empty; never persist null content
+    if not ai_message or not isinstance(ai_message, str) or not ai_message.strip():
+        logger.warning("Proceed: communication message empty; using fallback message")
         ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
 
     if journey_pref == 'journey' and has_journeys:
@@ -576,7 +622,6 @@ def proceed_recommendations():
             }
         }
 
-    conversation_manager = ConversationManager()
     assistant_message = conversation_manager.add_message(
         session=session,
         role='assistant',

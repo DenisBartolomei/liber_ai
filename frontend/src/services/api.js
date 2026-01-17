@@ -170,14 +170,14 @@ export const chatService = {
   getMessageRankings: (messageId) =>
     api.get(`/chat/messages/${messageId}/rankings`)
   ,
-  precomputeRankings: (sessionToken) =>
-    api.post('/chat/precompute-rankings', { session_token: sessionToken }),
+  precomputeRankings: (sessionToken, context = null) =>
+    api.post('/chat/precompute-rankings', { session_token: sessionToken, context }),
 
   getPrecomputeStatus: (sessionToken) =>
     api.get('/chat/precompute-rankings/status', { params: { session_token: sessionToken } }),
 
-  proceedRecommendations: (sessionToken) =>
-    api.post('/chat/proceed-recommendations', { session_token: sessionToken })
+  proceedRecommendations: (sessionToken, message = null) =>
+    api.post('/chat/proceed-recommendations', { session_token: sessionToken, message })
 }
 
 // Analytics Service
