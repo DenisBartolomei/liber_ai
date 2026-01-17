@@ -798,15 +798,26 @@ def send_message():
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
     
-    # Build the context to use - start with session context, then merge incoming context
-    merged_context = dict(session.context or {})
+    # ============================================
+    # CRITICAL: First read clarification mode flags from session BEFORE any merge
+    # These flags are set by /proceed-recommendations and MUST be preserved
+    # ============================================
+    session_ctx = session.context or {}
+    wines_proposed_from_session = session_ctx.get('wines_proposed', False)
+    filtered_wines_from_session = session_ctx.get('filtered_wines', [])
+    recommendation_state_from_session = session_ctx.get('recommendation_state', {})
     
-    # Update session context if provided
-    if message_context:
-        logger.info(f"Received message_context: dishes={len(message_context.get('dishes', []))}, guest_count={message_context.get('guest_count')}, preferences={message_context.get('preferences', {})}")
+    logger.info(f"[CLARIFICATION CHECK] Session {session.id}: wines_proposed={wines_proposed_from_session}, filtered_wines_count={len(filtered_wines_from_session)}, has_recommendation_state={bool(recommendation_state_from_session)}")
+    
+    # Build the context to use - start with session context
+    merged_context = dict(session_ctx)
+    
+    # Update session context if provided, BUT only if NOT in clarification mode
+    if message_context and not wines_proposed_from_session:
+        # Normal mode: merge incoming context with session context
+        logger.info(f"Received message_context (normal mode): dishes={len(message_context.get('dishes', []))}, guest_count={message_context.get('guest_count')}, preferences={message_context.get('preferences', {})}")
         
         # Merge context intelligently - preserve existing data, update with new
-        # Handle nested structures (preferences, dishes)
         if 'preferences' in message_context:
             if 'preferences' not in merged_context:
                 merged_context['preferences'] = {}
@@ -818,20 +829,26 @@ def send_message():
         if 'guest_count' in message_context:
             merged_context['guest_count'] = message_context['guest_count']
         
-        # Update other context fields
+        # Update other context fields (but preserve critical clarification fields)
         for key, value in message_context.items():
-            if key not in ['preferences', 'dishes', 'guest_count']:
+            if key not in ['preferences', 'dishes', 'guest_count', 'wines_proposed', 'filtered_wines', 'recommendation_state']:
                 merged_context[key] = value
         
         session.context = merged_context
-        
-        # Extract and save all preferences from context (budget, bottles, and normalize structure)
         session.save_preferences_from_context()
-        
         db.session.commit()
-        logger.info(f"Updated session.context: dishes={len(merged_context.get('dishes', []))}, guest_count={merged_context.get('guest_count')}, preferences={merged_context.get('preferences', {})}")
+        logger.info(f"Updated session.context (normal mode): dishes={len(merged_context.get('dishes', []))}, guest_count={merged_context.get('guest_count')}")
+    elif message_context and wines_proposed_from_session:
+        # CLARIFICATION MODE: Do NOT overwrite session.context to preserve wines_proposed and filtered_wines
+        logger.info(f"[CLARIFICATION MODE] Preserving existing context - NOT merging incoming message_context")
+        # Still use the session context which has all the data we need
     else:
-        logger.info(f"No message_context provided, using existing session.context: dishes={len(merged_context.get('dishes', []))}, guest_count={merged_context.get('guest_count')}")
+        logger.info(f"No message_context provided, using existing session.context")
+    
+    # ALWAYS ensure clarification flags are in merged_context (they come from session)
+    merged_context['wines_proposed'] = wines_proposed_from_session
+    merged_context['filtered_wines'] = filtered_wines_from_session
+    merged_context['recommendation_state'] = recommendation_state_from_session
     
     # Get venue for context
     venue = Venue.query.get(session.venue_id)
@@ -850,27 +867,22 @@ def send_message():
     # Refresh session to get updated message_count
     db.session.refresh(session)
     
-    # Use the merged_context we already have (don't re-read from session to avoid JSONB serialization issues)
-    # Just check for wines_proposed and filtered_wines from session if they were set by proceed-recommendations
-    if session.context:
-        # Update merged_context with any fields that might have been set by other endpoints
-        if session.context.get('wines_proposed'):
-            merged_context['wines_proposed'] = session.context.get('wines_proposed')
-        if session.context.get('filtered_wines'):
-            merged_context['filtered_wines'] = session.context.get('filtered_wines')
-        if session.context.get('recommendation_state'):
-            merged_context['recommendation_state'] = session.context.get('recommendation_state')
+    # Use wines_proposed from what we read at the beginning (guaranteed accurate)
+    wines_proposed = wines_proposed_from_session
+    has_filtered_wines = bool(filtered_wines_from_session)
     
-    wines_proposed = merged_context.get('wines_proposed', False)
-    has_filtered_wines = bool(merged_context.get('filtered_wines', []))
-    
-    # Log full context for debugging
+    # Log full context for debugging - CRITICAL for clarification mode diagnosis
     dishes = merged_context.get('dishes', [])
     guest_count = merged_context.get('guest_count')
     preferences = merged_context.get('preferences', {})
+    recommendation_state = merged_context.get('recommendation_state', {})
     
-    logger.info(f"Messages endpoint: session={session.id}, wines_proposed={wines_proposed}, has_filtered_wines={has_filtered_wines}")
-    logger.info(f"Messages endpoint context: dishes={len(dishes)}, guest_count={guest_count}, preferences={preferences}")
+    logger.info(f"[BEFORE AI CALL] Session {session.id}: wines_proposed={wines_proposed}, filtered_wines_count={len(filtered_wines_from_session)}")
+    logger.info(f"[BEFORE AI CALL] Context: dishes={len(dishes)}, guest_count={guest_count}, preferences={preferences}")
+    logger.info(f"[BEFORE AI CALL] Recommendation state: mode={recommendation_state.get('mode')}, wines_count={len(recommendation_state.get('wines', []))}, rankings_message_id={recommendation_state.get('rankings_message_id')}")
+    
+    if wines_proposed and has_filtered_wines:
+        logger.info(f"[CLARIFICATION MODE ACTIVE] Will use clarification prompt instead of recommendation prompt")
     
     # Process message through AI agent
     try:
