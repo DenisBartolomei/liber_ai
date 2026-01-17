@@ -23,7 +23,8 @@ class WineParserService:
     def __init__(self):
         self.client = OpenAI(api_key=current_app.config.get('OPENAI_API_KEY'))
         self.model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
-        self.vision_model = 'gpt-4o'  # GPT-4 Vision for image parsing
+        self.vision_model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
     
     def parse_wine_images(self, base64_images: List[str]) -> List[Dict[str, Any]]:
         """
@@ -86,6 +87,7 @@ Rispondi SOLO con un array JSON valido. Nessun altro testo."""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": content}
                 ],
+                reasoning_effort=self.reasoning_effort,
                 temperature=0.2,
                 max_tokens=4096
             )
@@ -182,6 +184,7 @@ Esempio output:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Estrai i vini da questa carta:\n\n{wine_text}"}
                 ],
+                reasoning_effort=self.reasoning_effort,
                 temperature=0.3,
                 max_tokens=4000
             )

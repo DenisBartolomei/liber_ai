@@ -34,7 +34,8 @@ class FineTunedWineSelector:
             logger.error(f"Error initializing OpenAI client: {e}")
             raise
         
-        self.model = current_app.config.get('OPENAI_FINETUNED_MODEL', 'gpt-4o-mini')
+        self.model = current_app.config.get('OPENAI_FINETUNED_MODEL', current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini'))
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
         logger.info(f"FineTunedWineSelector initialized with model: {self.model} (from OPENAI_FINETUNED_MODEL)")
     
     def select_wines(
@@ -109,6 +110,7 @@ class FineTunedWineSelector:
                 model=self.model,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent selections
+                reasoning_effort=self.reasoning_effort,
                 max_completion_tokens=max_tokens,  # Dynamic limit based on number of wines (max 8000)
                 response_format={"type": "json_object"}
             )
@@ -155,9 +157,7 @@ class FineTunedWineSelector:
                 all_wines,
                 gathered_info.get('journey_preference', 'single'),
                 gathered_info,
-                featured_wines=featured_wines or [],
-                wine_type_pref=gathered_info.get('wine_type', 'any'),
-                max_price=max_price
+                featured_wines=featured_wines or []
             )
             
             return validated_result
@@ -184,58 +184,23 @@ class FineTunedWineSelector:
         all_wines: List[Dict],
         journey_preference: str,
         gathered_info: Optional[Dict] = None,
-        featured_wines: Optional[List[int]] = None,
-        wine_type_pref: Optional[str] = None,
-        max_price: Optional[float] = None
+        featured_wines: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """
         Validate JSON result and enrich with full wine data from DB.
         
         Args:
             result_json: JSON from fine-tuned model
-            all_wines: Complete list of wines from DB (already filtered)
+            all_wines: Complete list of wines from DB
             journey_preference: 'single' or 'journey'
             gathered_info: Preferences dict with budget info
-            featured_wines: Optional list of featured wine IDs
-            wine_type_pref: Wine type filter ('any' means no filter)
-            max_price: Maximum price filter (budget + 15%)
             
         Returns:
             Validated and enriched result
         """
-        # Log filter parameters for debugging
-        logger.info(
-            f"Validating wines with filters: wine_type={wine_type_pref}, max_price={max_price}, "
-            f"total_wines_to_validate={len(all_wines)}"
-        )
-        
         # Create wine lookup by ID and name
         wine_by_id = {w.get('id'): w for w in all_wines if w.get('id')}
         wine_by_name = {w.get('name', '').lower().strip(): w for w in all_wines if w.get('name')}
-        
-        # Helper function to validate wine against filters
-        def wine_passes_filters(wine: Dict) -> bool:
-            """Check if wine passes type and price filters"""
-            if not wine:
-                return False
-            
-            # Check wine type filter
-            if wine_type_pref and wine_type_pref != 'any':
-                wine_type = wine.get('type', '').lower() if wine.get('type') else ''
-                if wine_type != wine_type_pref.lower():
-                    return False
-            
-            # Check price filter
-            if max_price is not None:
-                wine_price = float(wine.get('price', 0)) if wine.get('price') else 0
-                if wine_price > max_price:
-                    logger.warning(
-                        f"Wine {wine.get('id')} ({wine.get('name')}) price {wine_price} exceeds max_price {max_price}. "
-                        f"Filtering out."
-                    )
-                    return False
-            
-            return True
         
         validated = {'wines': [], 'journeys': []}
         
@@ -269,14 +234,6 @@ class FineTunedWineSelector:
                         wine = wine_by_name.get(wine_name.lower().strip())
                     
                     if wine:
-                        # Validate wine against filters
-                        if not wine_passes_filters(wine):
-                            logger.warning(
-                                f"Journey wine {wine.get('id')} ({wine.get('name')}) does not pass filters. "
-                                f"Filtering out."
-                            )
-                            continue
-                        
                         # Enrich with full wine data
                         enriched_wine = {
                             'id': wine.get('id'),
@@ -342,14 +299,6 @@ class FineTunedWineSelector:
                     wine = wine_by_name.get(wine_name.lower().strip())
                 
                 if wine:
-                    # Validate wine against filters
-                    if not wine_passes_filters(wine):
-                        logger.warning(
-                            f"Single mode wine {wine.get('id')} ({wine.get('name')}) does not pass filters. "
-                            f"Filtering out."
-                        )
-                        continue
-                    
                     # Get rank from JSON, or use position as fallback
                     rank = wine_data.get('rank')
                     if rank is None:
@@ -476,16 +425,7 @@ class FineTunedWineSelector:
                         f"Creating fallback ranking."
                     )
                     # Create fallback ranking: order by price (ascending) and assign ranks
-                    # Filter wines to ensure they pass filters
-                    filtered_all_wines = [w for w in all_wines if wine_passes_filters(w)]
-                    sorted_wines = sorted(filtered_all_wines, key=lambda w: float(w.get('price', 0)))
-                    
-                    if len(filtered_all_wines) < len(all_wines):
-                        logger.warning(
-                            f"Fallback ranking: Filtered out {len(all_wines) - len(filtered_all_wines)} wines "
-                            f"that don't pass filters. Using {len(filtered_all_wines)} wines."
-                        )
-                    
+                    sorted_wines = sorted(all_wines, key=lambda w: float(w.get('price', 0)))
                     for idx, wine in enumerate(sorted_wines):
                         validated['wines'].append({
                             'id': wine.get('id'),
@@ -531,18 +471,6 @@ class FineTunedWineSelector:
                 validated_wine_ids = {w.get('id') for w in validated['wines']}
                 missing_wines = [w for w in all_wines if w.get('id') not in validated_wine_ids]
                 
-                # CRITICAL: Filter missing wines to ensure they pass filters
-                # Even though all_wines should be filtered, we validate explicitly for safety
-                filtered_missing_wines = [w for w in missing_wines if wine_passes_filters(w)]
-                
-                if len(filtered_missing_wines) < len(missing_wines):
-                    filtered_out_count = len(missing_wines) - len(filtered_missing_wines)
-                    logger.warning(
-                        f"Filtered out {filtered_out_count} missing wines that don't pass filters "
-                        f"(wine_type={wine_type_pref}, max_price={max_price}). "
-                        f"Original missing: {len(missing_wines)}, after filter: {len(filtered_missing_wines)}"
-                    )
-                
                 # Identify wine types returned by model
                 returned_wine_types = set()
                 for wine in validated['wines']:
@@ -554,7 +482,7 @@ class FineTunedWineSelector:
                 same_type_wines = []
                 other_type_wines = []
                 
-                for wine in filtered_missing_wines:
+                for wine in missing_wines:
                     wine_type = wine.get('type', '').lower() if wine.get('type') else ''
                     if wine_type in returned_wine_types:
                         same_type_wines.append(wine)
@@ -571,13 +499,6 @@ class FineTunedWineSelector:
                 # Add missing wines with fallback ranking
                 max_rank = max([w.get('rank', 0) for w in validated['wines']], default=0)
                 for idx, wine in enumerate(ordered_missing_wines):
-                    # Double-check filter (should already be filtered, but validate for safety)
-                    if not wine_passes_filters(wine):
-                        logger.warning(
-                            f"Skipping missing wine {wine.get('id')} ({wine.get('name')}) - does not pass filters"
-                        )
-                        continue
-                    
                     # Use description as reason if available, otherwise default
                     reason = wine.get('description', 'Vino disponibile nella carta.')
                     if not reason or reason.strip() == '':

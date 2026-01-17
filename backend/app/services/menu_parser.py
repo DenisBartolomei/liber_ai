@@ -18,6 +18,7 @@ class MenuParserService:
     def __init__(self):
         self.client = OpenAI(api_key=current_app.config.get('OPENAI_API_KEY'))
         self.model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
     
     def parse_menu_text(self, menu_text: str) -> List[Dict[str, Any]]:
         """
@@ -65,6 +66,7 @@ Esempio output:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Estrai i piatti da questo menù:\n\n{menu_text}"}
                 ],
+                reasoning_effort=self.reasoning_effort,
                 temperature=0.3,
                 max_tokens=4000
             )

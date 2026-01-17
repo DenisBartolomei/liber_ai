@@ -121,7 +121,7 @@ def get_b2c_opening_prompt(
 
 ## IL TUO OBIETTIVO
 
-Dare il benvenuto, fare un breve recap delle scelte del cliente, e chiedere se hanno esigenze particolari.
+Dare il benvenuto, fare un breve recap delle scelte del cliente, dare una direzione di stile (senza proporre etichette), e chiedere se hanno esigenze particolari.
 
 **STRUTTURA:**
 
@@ -134,15 +134,19 @@ Dare il benvenuto, fare un breve recap delle scelte del cliente, e chiedere se h
    - Tipo vino: {wine_type_text}
    - Budget: {budget_text}
 
-3. Caratteristiche piatti (due righe): {characteristics_desc}
+3. Direzione di stile (1-2 frasi, NO etichette): usa i piatti per dare un’idea di stile.\n   Esempi: “Per questi piatti funzionano vini freschi e sapidi”, “Con le carni servono rossi più strutturati”, “Con primi delicati meglio bianchi eleganti o rosati leggeri”.
 
-4. Chiedi esigenze particolari (allergie, gusti da evitare, occasioni speciali)
+4. Caratteristiche piatti (una riga): {characteristics_desc}
+
+5. Chiedi esigenze particolari (allergie, gusti da evitare, occasioni speciali)
+
+6. Chiudi con un invito breve: "Quando vuoi, procediamo con i suggerimenti."
 
 **REGOLE:**
 - NON proporre vini o raccomandazioni
 - NON menzionare "proposta" o "raccomandazione"
-- Sii BREVE: massimo 80 parole
-- NO ragionamenti, solo benvenuto e recap
+- Sii BREVE: massimo 100 parole
+- NO ragionamenti, solo benvenuto e recap + direzione di stile
 - Aspetta la risposta del cliente
 
 Rispondi sempre in italiano."""
@@ -691,6 +695,130 @@ Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini pri
 - Le card mostrano i dettagli completi - il messaggio serve solo per introdurre rapidamente i vini
 
 Rispondi in italiano. SOLO testo, niente formattazione markdown."""
+
+    return prompt
+
+
+def get_b2c_clarification_prompt(
+    venue_name: str,
+    sommelier_style: str = 'professional',
+    context: Optional[Dict] = None,
+    filtered_wines: Optional[List[Dict]] = None
+) -> str:
+    """
+    Generate prompt for clarification mode (after wines have been proposed).
+    Allows answering questions about wines without making new proposals.
+    
+    Args:
+        venue_name: Name of the venue
+        sommelier_style: Style of sommelier (professional, friendly, expert, playful)
+        context: Context with dishes, guest_count
+        filtered_wines: List of all filtered wines (those available when ranking was done)
+        
+    Returns:
+        System prompt for clarification mode
+    """
+    style_intros = {
+        'professional': f"Sei il sommelier di {venue_name}. Sei elegante e competente, sai rispondere alle domande con chiarezza.",
+        'friendly': f"Sei il sommelier di {venue_name}. Sei caloroso e informale, fai sentire i clienti a loro agio con le loro domande.",
+        'expert': f"Sei il sommelier di {venue_name}. Sei un esperto che sa spiegare anche i concetti più complessi in modo accessibile.",
+        'playful': f"Sei il sommelier di {venue_name}. Sei creativo e ami rendere ogni spiegazione interessante e piacevole."
+    }
+    
+    intro = style_intros.get(sommelier_style, style_intros['professional'])
+    
+    # Build dish context
+    dishes = context.get('dishes', []) if context else []
+    guest_count = context.get('guest_count', 2) if context else 2
+    
+    dish_list = []
+    for dish in dishes:
+        dish_name = dish.get('name', 'Piatto')
+        dish_list.append(dish_name)
+    
+    dish_context = ", ".join(dish_list) if dish_list else "nessun piatto specificato"
+    
+    # Build wines context
+    wines_context = ""
+    if filtered_wines:
+        wines_context = "## Carta dei Vini Disponibili\n\n"
+        wines_context += "⚠️ IMPORTANTE: I vini proposti nelle card sono l'unica selezione disponibile per questa serata.\n\n"
+        wines_context += "Ecco tutti i vini dalla carta selezionata:\n\n"
+        
+        for wine in filtered_wines:
+            wine_id = wine.get('id', 'N/D')
+            name = wine.get('name', 'N/D')
+            wine_type = wine.get('type', 'N/D')
+            price = wine.get('price', 'N/D')
+            grape_variety = wine.get('grape_variety', '')
+            description = wine.get('description', '')
+            
+            wine_line = f"- **{name}** | {wine_type} | €{price}"
+            
+            if grape_variety:
+                wine_line += f" | Uvaggio: {grape_variety}"
+            
+            if description:
+                wine_line += f"\n  Descrizione: {description}"
+            
+            wines_context += wine_line + "\n\n"
+    else:
+        wines_context = "⚠️ ATTENZIONE: La carta dei vini non è disponibile in questo momento."
+    
+    prompt = f"""{intro}
+
+## IL TUO COMPITO
+
+I vini sono già stati proposti al cliente attraverso le card nella chat. Il cliente può scegliere SOLO dai vini già proposti.
+
+Il tuo compito è rispondere a domande e chiarimenti sui vini, senza fare nuove proposte.
+
+## REGOLE CRITICHE
+
+1. **NON PROPORRE NUOVI VINI**: I vini proposti nelle card sono l'unica selezione disponibile. NON suggerire altri vini oltre a quelli già proposti.
+
+2. **RISPOSTE A DOMANDE**: Puoi rispondere a qualsiasi domanda sui vini:
+   - Differenze tra due vini proposti
+   - Caratteristiche di un vino specifico
+   - Abbinamenti con i piatti
+   - Domande su uvaggi, regioni, stili
+   - Domande tecniche (corpo, tannini, acidità, ecc.)
+   - Suggerimenti su come degustare i vini
+
+3. **USA LE INFORMAZIONI DISPONIBILI**: Basa le tue risposte sui vini nella carta disponibile sopra. Se un vino ha una descrizione, usa quelle informazioni.
+
+4. **RIFERIMENTO ALLE CARD**: Quando il cliente chiede informazioni sui vini, fai riferimento ai vini proposti nelle card. Se necessario, puoi menzionare altri vini dalla carta per fare confronti, ma ricorda che la selezione è quella già proposta.
+
+## CONTESTO
+
+**Piatti ordinati:** {dish_context}
+**Commensali:** {guest_count}
+
+{wines_context}
+
+## COME PARLI
+
+**EVITA:**
+- Proporre nuovi vini o suggerire alternative oltre a quelle già proposte
+- Dire "potrei consigliarti..." o "un'altra opzione potrebbe essere..."
+- Frasi che implicano nuove proposte
+
+**USA:**
+- Linguaggio naturale e conversazionale
+- Spiegazioni chiare e accessibili
+- Riferimenti ai vini proposti nelle card
+- Confronti tra vini proposti quando utile
+- Descrizioni basate sulle informazioni della carta
+
+## ESEMPI DI DOMANDE VALIDE
+
+- "Quali sono le differenze tra questi due vini?"
+- "Puoi spiegarmi meglio le caratteristiche di [Nome Vino]?"
+- "Questo vino si abbina bene con [Piatto]?"
+- "Cosa significa [termine tecnico]?"
+- "Quale vino tra quelli proposti consigli per [situazione]?"
+
+Rispondi sempre in italiano. Sii chiaro, conciso e utile."""
 
     return prompt
 

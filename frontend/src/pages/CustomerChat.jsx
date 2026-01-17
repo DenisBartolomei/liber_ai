@@ -117,6 +117,9 @@ function CustomerChat() {
   const [modalMessageId, setModalMessageId] = useState(null)
   const [modalWines, setModalWines] = useState([])
   const [loadingRankings, setLoadingRankings] = useState(false)
+  const [showProceedButton, setShowProceedButton] = useState(false)
+  const [proceedLoading, setProceedLoading] = useState(false)
+  const [precomputeStatus, setPrecomputeStatus] = useState(null)
   
   // Calculate bottles when journey is selected or guest count changes
   useEffect(() => {
@@ -197,8 +200,11 @@ function CustomerChat() {
     messagesEndRef,
     setInitialContext,
     sessionToken,
+    context: chatContext,
     addAssistantMessage,
-    fetchWineRankings
+    fetchWineRankings,
+    precomputeRankings,
+    proceedRecommendations
   } = useChat(venueSlug, 'b2c', accessToken)
 
   useEffect(() => {
@@ -341,6 +347,31 @@ function CustomerChat() {
     }
     sendMessage(initialMessage, context, { hidden: true })
   }
+
+  useEffect(() => {
+    if (flowStep === 'chat' && sessionToken && chatContext && !precomputeStatus) {
+      precomputeRankings().then((res) => {
+        if (res?.status) {
+          setPrecomputeStatus(res.status)
+        } else {
+          setPrecomputeStatus('pending')
+        }
+      })
+    }
+  }, [flowStep, sessionToken, chatContext, precomputeStatus, precomputeRankings])
+
+  useEffect(() => {
+    if (!messages.length) return
+    const lastMessage = messages[messages.length - 1]
+
+    if (lastMessage?.role === 'assistant' && lastMessage.metadata?.is_opening) {
+      setShowProceedButton(true)
+    }
+
+    if ((lastMessage?.wines && lastMessage.wines.length > 0) || (lastMessage?.journeys && lastMessage.journeys.length > 0)) {
+      setShowProceedButton(false)
+    }
+  }, [messages])
   
   // Filter messages to hide the initial automatic one
   const visibleMessages = messages.filter(m => !m.hidden)
@@ -358,6 +389,27 @@ function CustomerChat() {
   // Generate continue message
   const generateContinueMessage = () => {
     return "Molto bene! Vorremmo valutare alternative per la selezione. Cos'altro ci proponi?"
+  }
+
+  const handleProceedSuggestions = async () => {
+    if (proceedLoading) return
+    setProceedLoading(true)
+
+    const response = await proceedRecommendations()
+    if (response?.status === 202) {
+      const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
+      addAssistantMessage(pendingMessage)
+      setPrecomputeStatus('pending')
+      setProceedLoading(false)
+      return
+    }
+
+    if (!response) {
+      addAssistantMessage('Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.')
+    }
+
+    setShowProceedButton(false)
+    setProceedLoading(false)
   }
 
   // Handle confirmation button click (legacy, keep for compatibility)
@@ -1567,6 +1619,31 @@ function CustomerChat() {
           }}
           selectedWineId={modalMessageId ? selectedWineByMessage[modalMessageId] : null}
         />
+      )}
+
+      {/* Proceed CTA */}
+      {flowStep === 'chat' && showProceedButton && (
+        <div className="border-t border-burgundy-100 bg-white px-4 pt-4">
+          <div className="max-w-2xl mx-auto">
+            <button
+              onClick={handleProceedSuggestions}
+              disabled={proceedLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              {proceedLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Sto preparando i suggerimenti...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Procedi al suggerimento
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Input Form */}

@@ -118,9 +118,10 @@ class Config:
     
     # OpenAI
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5-mini-2025-08-07')  # Conversational model for opening messages (use gpt-4o-mini as default, can be overridden with gpt-5 if available)
-    OPENAI_FINETUNED_MODEL = os.getenv('OPENAI_FINETUNED_MODEL', 'ft:gpt-4.1-mini-2025-04-14:personal:liber-ai:CoTKB8PZ')  # Fine-tuned model for wine selection (from .env)
-    OPENAI_COMMUNICATION_MODEL = os.getenv('OPENAI_COMMUNICATION_MODEL', 'gpt-5-mini-2025-08-07')  # Model for natural language communication
+    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.1')  # Unified model for all conversational tasks
+    OPENAI_FINETUNED_MODEL = os.getenv('OPENAI_FINETUNED_MODEL', 'gpt-5.1')  # Unified model for ranking/selection
+    OPENAI_COMMUNICATION_MODEL = os.getenv('OPENAI_COMMUNICATION_MODEL', 'gpt-5.1')  # Model for natural language communication
+    OPENAI_REASONING_EFFORT = os.getenv('OPENAI_REASONING_EFFORT', 'low')
     OPENAI_EMBEDDING_MODEL = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
     
     # Frontend

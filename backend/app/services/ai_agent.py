@@ -12,7 +12,7 @@ from app.services.vector_search import VectorSearchService
 from app.services.fine_tuned_selector import FineTunedWineSelector
 from app.services.communication_model import CommunicationModelService
 from app.prompts.b2b_system import get_b2b_system_prompt
-from app.prompts.b2c_system import get_b2c_system_prompt, get_b2c_opening_prompt, calculate_bottles_needed
+from app.prompts.b2c_system import get_b2c_system_prompt, get_b2c_opening_prompt, get_b2c_clarification_prompt, calculate_bottles_needed
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,7 @@ class AIAgentService:
             raise
         
         self.model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
         self.vector_service = VectorSearchService()
         self.max_history = current_app.config.get('MAX_CONVERSATION_HISTORY', 20)
         
@@ -118,8 +119,111 @@ class AIAgentService:
             else:
                 active_context['guest_count'] = 2  # Default
         
-        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, message_count={message_count}")
-        logger.info(f"Using model for {'opening' if use_opening_prompt else 'recommendation'}: {self.model if use_opening_prompt else 'fine-tuned'}")
+        # Check if wines have already been proposed (clarification mode)
+        wines_proposed = active_context.get('wines_proposed', False)
+        filtered_wines = active_context.get('filtered_wines', [])
+        
+        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, wines_proposed={wines_proposed}, message_count={message_count}")
+        logger.info(f"Using model for {'opening' if use_opening_prompt else ('clarification' if wines_proposed else 'recommendation')}: {self.model}")
+        
+        # CLARIFICATION MODE: Wines have already been proposed, only answer questions
+        if wines_proposed and filtered_wines:
+            logger.info(f"Using clarification mode with {len(filtered_wines)} filtered wines")
+            
+            # Use clarification prompt (no new wine proposals, only questions/answers)
+            system_prompt = get_b2c_clarification_prompt(
+                venue_name=venue.name,
+                sommelier_style=venue.sommelier_style or 'professional',
+                context=active_context,
+                filtered_wines=filtered_wines
+            )
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add conversation history
+            for msg in history:
+                messages.append({"role": msg['role'], "content": msg['content']})
+            
+            # Add current user message
+            messages.append({"role": "user", "content": user_message})
+            
+            # Call GPT - clarification mode, text-only response
+            try:
+                logger.info(f"Calling OpenAI API for clarification with model: {self.model}, messages count: {len(messages)}")
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    reasoning_effort=self.reasoning_effort,
+                    max_completion_tokens=600  # Allow detailed explanations
+                )
+                
+                logger.info(f"OpenAI API response received: has_choices={bool(response.choices)}, choices_count={len(response.choices) if response.choices else 0}")
+                
+                # Safely extract response content
+                if not response.choices or len(response.choices) == 0:
+                    logger.error("OpenAI API returned no choices in response")
+                    raise ValueError("La risposta dell'API non contiene scelte valide")
+                
+                choice = response.choices[0]
+                if not choice.message:
+                    logger.error("OpenAI API response choice has no message")
+                    raise ValueError("La risposta dell'API non contiene un messaggio valido")
+                
+                ai_response = choice.message.content
+                logger.info(f"Extracted AI clarification response: length={len(ai_response) if ai_response else 0}, preview={ai_response[:100] if ai_response else 'None'}")
+                
+                # Ensure response is not empty
+                if not ai_response or not ai_response.strip():
+                    logger.warning("Clarification message returned empty response, generating fallback")
+                    ai_response = "Mi dispiace, potresti riformulare la domanda? Sono qui per rispondere alle tue domande sui vini proposti."
+                
+                # Final validation before returning
+                if not ai_response or not isinstance(ai_response, str) or not ai_response.strip():
+                    logger.error(f"AI clarification response is invalid: type={type(ai_response)}, value={repr(ai_response)}")
+                    raise ValueError("La risposta dell'AI è vuota o non valida")
+                
+                logger.info(f"Returning clarification message: length={len(ai_response)}, preview={ai_response[:150]}")
+                
+                result = {
+                    'message': ai_response.strip(),
+                    'wines': [],  # NO wines in clarification mode
+                    'wine_ids': [],
+                    'journeys': [],
+                    'suggestions': [],
+                    'mode': 'single',
+                    'metadata': {
+                        'model': self.model,
+                        'tokens_used': response.usage.total_tokens if response.usage else 0,
+                        'gathered_info': gathered_info,
+                        'is_recommending': False,
+                        'is_clarification': True  # Flag to indicate clarification mode
+                    }
+                }
+                
+                logger.info(f"Clarification result: message_length={len(result['message'])}, is_clarification={result['metadata']['is_clarification']}")
+                return result
+                
+            except Exception as e:
+                logger.error(f"Error in clarification message: {e}", exc_info=True)
+                # Generate fallback clarification message instead of raising
+                fallback_message = "Mi dispiace, c'è stato un problema. Potresti riformulare la domanda? Sono qui per rispondere alle tue domande sui vini proposti nelle card."
+                
+                return {
+                    'message': fallback_message,
+                    'wines': [],
+                    'wine_ids': [],
+                    'journeys': [],
+                    'suggestions': [],
+                    'mode': 'single',
+                    'metadata': {
+                        'model': self.model,
+                        'tokens_used': 0,
+                        'gathered_info': gathered_info,
+                        'is_recommending': False,
+                        'is_clarification': True,
+                        'error': str(e)
+                    }
+                }
         
         if use_opening_prompt:
             # Use simple opening prompt (no wine list needed, just welcome and recap)
@@ -147,6 +251,7 @@ class AIAgentService:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
+                    reasoning_effort=self.reasoning_effort,
                     max_completion_tokens=600  # Increased for more complete opening messages
                 )
                 
@@ -460,7 +565,8 @@ class AIAgentService:
                         'model': self.model,
                         'tokens_used': 0,  # TODO: Track tokens from both models
                         'gathered_info': gathered_info,
-                        'is_recommending': True
+                        'is_recommending': True,
+                        'filtered_wines': all_wines  # Include filtered wines for context saving
                     }
                 }
             else:
@@ -484,7 +590,8 @@ class AIAgentService:
                         'model': self.model,
                         'tokens_used': 0,  # TODO: Track tokens from both models
                         'gathered_info': gathered_info,
-                        'is_recommending': True
+                        'is_recommending': True,
+                        'filtered_wines': all_wines  # Include filtered wines for context saving
                     }
                 }
             
@@ -591,6 +698,7 @@ class AIAgentService:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
+            reasoning_effort=self.reasoning_effort,
             max_tokens=800  # Increased for more complete responses
         )
         
@@ -629,7 +737,8 @@ class AIAgentService:
                             'model': self.model,
                             'tokens_used': response.usage.total_tokens if response.usage else 0,
                             'gathered_info': gathered_info,
-                            'is_recommending': True
+                            'is_recommending': True,
+                            'filtered_wines': all_wines  # Include filtered wines for context saving
                         }
                     }
         
@@ -646,7 +755,8 @@ class AIAgentService:
                 'model': self.model,
                 'tokens_used': response.usage.total_tokens if response.usage else 0,
                 'gathered_info': gathered_info,
-                'is_recommending': len(wines_to_return) > 0
+                'is_recommending': len(wines_to_return) > 0,
+                'filtered_wines': all_wines if len(wines_to_return) > 0 else []  # Include filtered wines for context saving
             }
         }
     
@@ -701,6 +811,7 @@ class AIAgentService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
+                reasoning_effort=self.reasoning_effort,
                 max_tokens=400  # Reduced for faster, more direct responses
             )
             
@@ -728,6 +839,138 @@ class AIAgentService:
         except Exception as e:
             logger.error(f"Error in process_b2b_message: {e}")
             raise ValueError(f"Si è verificato un errore. Riprova.")
+
+    def compute_rankings_for_context(
+        self,
+        session,
+        venue,
+        active_context: Dict,
+        user_message: str = "",
+        history: Optional[List[Dict]] = None
+    ) -> Dict[str, Any]:
+        """
+        Precompute wine rankings based on session context without generating a message.
+        Returns the filtered wines and structured ranking JSON.
+        """
+        if history is None:
+            history = session.get_conversation_history(limit=self.max_history)
+
+        preferences = active_context.get('preferences', {}) if active_context else {}
+        gathered_info = {
+            'wine_type': preferences.get('wine_type', 'any'),
+            'journey_preference': preferences.get('journey_preference', 'single'),
+            'budget': preferences.get('budget'),
+            'bottles_count': preferences.get('bottles_count')
+        }
+
+        if gathered_info['journey_preference'] == 'journey' and not gathered_info['bottles_count']:
+            if hasattr(session, 'num_bottiglie_target') and session.num_bottiglie_target:
+                gathered_info['bottles_count'] = session.num_bottiglie_target
+
+        if 'guest_count' not in active_context:
+            session_context = getattr(session, 'context', None)
+            if session_context and 'guest_count' in session_context:
+                active_context['guest_count'] = session_context['guest_count']
+            else:
+                active_context['guest_count'] = 2
+
+        wine_type_pref = gathered_info.get('wine_type', 'any')
+        budget_pref = gathered_info.get('budget')
+
+        from app.models import Product
+
+        query = Product.query.filter_by(
+            venue_id=venue.id,
+            is_available=True
+        )
+
+        if wine_type_pref and wine_type_pref != 'any':
+            query = query.filter_by(type=wine_type_pref)
+        else:
+            logger.info(
+                f"Precompute: NO wine type filter applied (wine_type='{wine_type_pref}' means 'any')."
+            )
+
+        budget_max = None
+        if budget_pref and budget_pref != 'nolimit':
+            if isinstance(budget_pref, (int, float)):
+                budget_max = float(budget_pref)
+            elif budget_pref == 'base' or budget_pref == 'low':
+                budget_max = 20.0
+            elif budget_pref == 'spinto' or budget_pref == 'medium':
+                budget_max = 40.0
+
+            if budget_max:
+                max_price = budget_max * 1.15
+                query = query.filter(Product.price <= max_price)
+
+        try:
+            all_products = query.options(
+                db.load_only(
+                    Product.id,
+                    Product.venue_id,
+                    Product.name,
+                    Product.type,
+                    Product.price,
+                    Product.cost_price,
+                    Product.margin,
+                    Product.is_available,
+                    Product.image_url,
+                    Product.description,
+                    Product.grape_variety,
+                    Product.created_at,
+                    Product.updated_at
+                )
+            ).order_by(Product.type, Product.name).all()
+        except Exception:
+            all_products = query.options(
+                db.load_only(
+                    Product.id,
+                    Product.venue_id,
+                    Product.name,
+                    Product.type,
+                    Product.price,
+                    Product.cost_price,
+                    Product.margin,
+                    Product.is_available,
+                    Product.image_url,
+                    Product.created_at,
+                    Product.updated_at
+                )
+            ).order_by(Product.type, Product.name).all()
+
+        all_wines = [p.to_dict() for p in all_products]
+
+        if not all_wines:
+            return {
+                'all_wines': [],
+                'wine_selection': {'wines': [], 'journeys': []},
+                'gathered_info': gathered_info,
+                'journey_pref': gathered_info.get('journey_preference', 'single')
+            }
+
+        featured_wines = venue.get_featured_wines() if hasattr(venue, 'get_featured_wines') else []
+        max_price_for_model = budget_max * 1.15 if budget_max else None
+
+        fine_tuned_selector = FineTunedWineSelector()
+        wine_selection = fine_tuned_selector.select_wines(
+            venue_name=venue.name,
+            venue_id=venue.id,
+            context=active_context,
+            gathered_info=gathered_info,
+            all_wines=all_wines,
+            history=history,
+            user_message=user_message,
+            featured_wines=featured_wines,
+            max_price=max_price_for_model
+        )
+
+        return {
+            'all_wines': all_wines,
+            'wine_selection': wine_selection,
+            'gathered_info': gathered_info,
+            'journey_pref': gathered_info.get('journey_preference', 'single')
+        }
     
     def _build_search_query(
         self, 

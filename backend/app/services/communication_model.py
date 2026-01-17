@@ -35,6 +35,7 @@ class CommunicationModelService:
             raise
         
         self.model = current_app.config.get('OPENAI_COMMUNICATION_MODEL', 'gpt-4o-mini')
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
         logger.info(f"CommunicationModelService initialized with model: {self.model}")
     
     def generate_message(
@@ -90,6 +91,7 @@ class CommunicationModelService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
+                reasoning_effort=self.reasoning_effort,
                 max_completion_tokens=max_tokens  # Concise responses: only wine names + brief reasons
             )
             

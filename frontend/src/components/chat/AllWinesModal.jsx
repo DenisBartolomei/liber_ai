@@ -42,7 +42,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                   </div>
                   <div>
                     <h2 className="font-display text-lg md:text-2xl font-bold">
-                      Valuta tutti i vini
+                      Vedi altri vini
                     </h2>
                     <p className="text-xs md:text-sm text-cream-100/70">
                       {wines?.length || 0} vini disponibili per la tua selezione

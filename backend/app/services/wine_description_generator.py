@@ -36,6 +36,7 @@ class WineDescriptionGenerator:
             raise
         
         self.model = current_app.config.get('OPENAI_FINETUNED_MODEL', 'gpt-4o-mini')
+        self.reasoning_effort = current_app.config.get('OPENAI_REASONING_EFFORT', 'low')
         logger.info(f"WineDescriptionGenerator initialized with model: {self.model}")
     
     def generate_description(
@@ -115,6 +116,7 @@ Rispondi in formato JSON:"""
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
+                reasoning_effort=self.reasoning_effort,
                 temperature=0.7,  # Slightly creative but consistent
                 max_tokens=500,  # Increased for JSON response
                 response_format={"type": "json_object"}  # Force JSON response
