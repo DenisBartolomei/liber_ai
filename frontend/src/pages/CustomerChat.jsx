@@ -412,7 +412,11 @@ function CustomerChat() {
     if (proceedLoading) return
     setProceedLoading(true)
 
-    const response = await proceedRecommendations(userText)
+    const autoUserText = (userText && userText.trim()) ? userText.trim() : 'Nessuna esigenza, procedi pure'
+    // show as if it was sent by the customer
+    addUserMessage(autoUserText)
+
+    const response = await proceedRecommendations(autoUserText)
     if (response?.status === 202) {
       const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
       addAssistantMessage(pendingMessage)
@@ -572,7 +576,6 @@ function CustomerChat() {
       // If we are still in opening stage (CTA visible), treat user input as "proceed"
       if (showProceedButton) {
         const text = inputValue.trim()
-        addUserMessage(text)
         setInputValue('')
         handleProceedSuggestions(text)
         return
@@ -1350,7 +1353,7 @@ function CustomerChat() {
                                   
                                   // Fetch rankings from API using message_id from server
                                   try {
-                                    const messageId = message.message_id || message.id
+                                    const messageId = message.metadata?.rankings_message_id || message.message_id || message.id
                                     if (messageId) {
                                       const rankings = await fetchWineRankings(messageId)
                                       if (rankings && rankings.length > 0) {

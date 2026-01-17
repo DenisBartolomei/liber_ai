@@ -129,6 +129,13 @@ class AIAgentService:
         # CLARIFICATION MODE: Wines have already been proposed, only answer questions
         if wines_proposed and filtered_wines:
             logger.info(f"Using clarification mode with {len(filtered_wines)} filtered wines")
+
+            recommendation_state = active_context.get('recommendation_state', {}) if active_context else {}
+            recommended_mode = recommendation_state.get('mode', 'single')
+            recommended_wines = recommendation_state.get('wines', []) or []
+            recommended_journeys = recommendation_state.get('journeys', []) or []
+            recommended_wine_ids = recommendation_state.get('wine_ids', []) or []
+            rankings_message_id = recommendation_state.get('rankings_message_id')
             
             # Use clarification prompt (no new wine proposals, only questions/answers)
             system_prompt = get_b2c_clarification_prompt(
@@ -186,17 +193,20 @@ class AIAgentService:
                 
                 result = {
                     'message': ai_response.strip(),
-                    'wines': [],  # NO wines in clarification mode
-                    'wine_ids': [],
-                    'journeys': [],
+                    # Keep the original cards/CTA attached (immutable)
+                    'wines': recommended_wines if recommended_mode != 'journey' else [],
+                    'wine_ids': recommended_wine_ids,
+                    'journeys': recommended_journeys if recommended_mode == 'journey' else [],
+                    'all_rankings': [],  # fetched via rankings_message_id (see metadata)
                     'suggestions': [],
-                    'mode': 'single',
+                    'mode': recommended_mode or 'single',
                     'metadata': {
                         'model': self.model,
                         'tokens_used': response.usage.total_tokens if response.usage else 0,
                         'gathered_info': gathered_info,
                         'is_recommending': False,
-                        'is_clarification': True  # Flag to indicate clarification mode
+                        'is_clarification': True,  # Flag to indicate clarification mode
+                        'rankings_message_id': rankings_message_id
                     }
                 }
                 
@@ -210,17 +220,19 @@ class AIAgentService:
                 
                 return {
                     'message': fallback_message,
-                    'wines': [],
-                    'wine_ids': [],
-                    'journeys': [],
+                    'wines': recommended_wines if recommended_mode != 'journey' else [],
+                    'wine_ids': recommended_wine_ids,
+                    'journeys': recommended_journeys if recommended_mode == 'journey' else [],
+                    'all_rankings': [],
                     'suggestions': [],
-                    'mode': 'single',
+                    'mode': recommended_mode or 'single',
                     'metadata': {
                         'model': self.model,
                         'tokens_used': 0,
                         'gathered_info': gathered_info,
                         'is_recommending': False,
                         'is_clarification': True,
+                        'rankings_message_id': rankings_message_id,
                         'error': str(e)
                     }
                 }
@@ -277,9 +289,15 @@ class AIAgentService:
                     dish_list = [d.get('name', 'Piatto') for d in active_context.get('dishes', [])]
                     guest_count = active_context.get('guest_count', 2)
                     journey_text = "un percorso di vini" if gathered_info.get('journey_preference') == 'journey' else "una singola etichetta"
-                    wine_type_text = "si affida alla mia esperienza" if gathered_info.get('wine_type') == 'any' else gathered_info.get('wine_type', '')
-                    
-                    ai_response = f"Benvenuti! Ho visto che avete ordinato {', '.join(dish_list) if dish_list else 'alcuni piatti'} per {guest_count} {('persona' if guest_count == 1 else 'persone')}. Preferite {journey_text}? Avete esigenze particolari o preferenze da comunicarmi?"
+                    wine_type_text = "mi affido al tuo consiglio" if gathered_info.get('wine_type') == 'any' else gathered_info.get('wine_type', '')
+
+                    ai_response = (
+                        f"Benvenuti! Ho visto che siete in {guest_count} e avete scelto "
+                        f"{', '.join(dish_list) if dish_list else 'alcuni piatti'}. "
+                        f"Ci orientiamo su {journey_text} e, come preferenza, {wine_type_text}. "
+                        f"In generale, su questo menu funzionano vini equilibrati e coerenti con i sapori del piatto, senza coprirli. "
+                        f"Quando vuoi, procediamo con i suggerimenti."
+                    )
                 
                 # Final validation before returning
                 if not ai_response or not isinstance(ai_response, str) or not ai_response.strip():
@@ -314,7 +332,12 @@ class AIAgentService:
                 guest_count = active_context.get('guest_count', 2)
                 journey_text = "un percorso di vini" if gathered_info.get('journey_preference') == 'journey' else "una singola etichetta"
                 
-                fallback_message = f"Benvenuti! Ho visto che avete ordinato {', '.join(dish_list) if dish_list else 'alcuni piatti'} per {guest_count} {('persona' if guest_count == 1 else 'persone')}. Preferite {journey_text}? Avete esigenze particolari o preferenze da comunicarmi?"
+                fallback_message = (
+                    f"Benvenuti! Ho visto che siete in {guest_count} e avete scelto "
+                    f"{', '.join(dish_list) if dish_list else 'alcuni piatti'}. "
+                    f"Ci orientiamo su {journey_text}. "
+                    f"Quando vuoi, procediamo con i suggerimenti."
+                )
                 
                 return {
                     'message': fallback_message,

@@ -119,37 +119,18 @@ def get_b2c_opening_prompt(
     
     prompt = f"""{intro}
 
-## IL TUO OBIETTIVO
+Scrivi UN SOLO messaggio naturale (senza titoli, senza elenchi, senza formati tipo “ARGOMENTO: SPIEGAZIONE”).
 
-Dare il benvenuto, fare un breve recap delle scelte del cliente, dare una direzione di stile (senza proporre etichette), e chiedere se hanno esigenze particolari.
+Deve contenere:
+- un benvenuto breve
+- un recap fluido di: piatti ({', '.join(dish_list) if dish_list else 'nessuno'}), commensali ({guest_count}), modalità ({journey_text}), preferenza tipo vino ({wine_type_text}), budget ({budget_text})
+- 1–2 frasi di “linea guida” sullo stile di vino più adatto ai piatti (senza citare etichette specifiche)
+- chiusura con invito: “Quando vuoi, procediamo con i suggerimenti.”
 
-**STRUTTURA:**
-
-1. Benvenuto caloroso (una riga)
-
-2. Recap:
-   - Piatti: {', '.join(dish_list) if dish_list else 'nessuno'}
-   - Commensali: {guest_count}
-   - Modalità (journey vuol dire etichette diverse, altrimenti singola etichetta): {journey_text}
-   - Tipo vino: {wine_type_text}
-   - Budget: {budget_text}
-
-3. Direzione di stile (1-2 frasi, NO etichette): usa i piatti per dare un’idea di stile.\n   Esempi: “Per questi piatti funzionano vini freschi e sapidi”, “Con le carni servono rossi più strutturati”, “Con primi delicati meglio bianchi eleganti o rosati leggeri”.
-
-4. Caratteristiche piatti (una riga): {characteristics_desc}
-
-5. Chiedi esigenze particolari (allergie, gusti da evitare, occasioni speciali)
-
-6. Chiudi con un invito breve: "Quando vuoi, procediamo con i suggerimenti."
-
-**REGOLE:**
-- NON proporre vini o raccomandazioni
-- NON menzionare "proposta" o "raccomandazione"
-- Sii BREVE: massimo 100 parole
-- NO ragionamenti, solo benvenuto e recap + direzione di stile
-- Aspetta la risposta del cliente
-
-Rispondi sempre in italiano."""
+Regole:
+- NON proporre vini o raccomandazioni (niente nomi/etichette)
+- massimo ~90–100 parole
+- tono naturale, italiano."""
 
     return prompt
 

@@ -637,6 +637,15 @@ def proceed_recommendations():
     context['wines_proposed'] = True
     if filtered_wines_snapshot:
         context['filtered_wines'] = filtered_wines_snapshot
+    # Persist immutable recommendation state for later clarifications (no re-ranking)
+    context['recommendation_state'] = {
+        'mode': response_payload.get('mode'),
+        'wines': response_payload.get('wines', []),
+        'journeys': response_payload.get('journeys', []),
+        'wine_ids': response_payload.get('wine_ids', []),
+        # anchor message id to fetch full rankings via /messages/<id>/rankings
+        'rankings_message_id': assistant_message.id
+    }
     context['proceed_clicked_at'] = datetime.utcnow().isoformat()
     context['proceed_latency_ms'] = int((time.time() - start_time) * 1000)
     session.context = context
@@ -879,6 +888,14 @@ def send_message():
                 current_context = session.context or {}
                 current_context['wines_proposed'] = True
                 current_context['filtered_wines'] = filtered_wines
+                # Persist immutable recommendation state for later clarifications (no re-ranking)
+                current_context['recommendation_state'] = {
+                    'mode': response.get('mode', 'single'),
+                    'wines': response.get('wines', []),
+                    'journeys': response.get('journeys', []),
+                    'wine_ids': response.get('wine_ids', []),
+                    'rankings_message_id': assistant_message.id
+                }
                 session.context = current_context
                 logging.info(f"Saved wines_proposed=True and {len(filtered_wines)} filtered wines in session context")
         
