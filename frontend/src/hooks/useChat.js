@@ -89,6 +89,7 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
         content: messageContent,
         suggestions: response.data.suggestions || [],
         wines: response.data.wines || [],
+        wine_ids: response.data.wine_ids || [], // Wine IDs for selection
         all_rankings: response.data.all_rankings || [], // Tutti i vini rankati per il modal "Valuta tutti"
         journeys: response.data.journeys || [],
         mode: response.data.mode || 'single',
@@ -177,6 +178,7 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
         content: messageContent,
         suggestions: response.data.suggestions || [],
         wines: response.data.wines || [],
+        wine_ids: response.data.wine_ids || [],
         all_rankings: response.data.all_rankings || [],
         journeys: response.data.journeys || [],
         mode: response.data.mode || 'single',
@@ -185,7 +187,7 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      console.log('[useChat] Added assistant message with wines to state')
+      console.log('[useChat] Added assistant message with wines to state, count:', assistantMessage.wines?.length)
       return response
     } catch (err) {
       console.error('[useChat] Proceed recommendations error:', err)

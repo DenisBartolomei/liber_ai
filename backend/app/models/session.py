@@ -61,6 +61,16 @@ class Session(db.Model):
     # Status
     status = db.Column(db.String(20), default='active')  # active, completed, abandoned
     
+    # Precomputed ranking JSON (stored separately for reliability)
+    precomputed_ranking_json = db.Column(db.JSON)  # JSON from fine-tuned model with wine rankings
+    """
+    Example structure:
+    {
+        'wines': [{'id': 1, 'name': '...', 'rank': 1, 'reason': '...', 'best': True}, ...],
+        'journeys': [{'id': 1, 'wines': [...], 'reason': '...'}, ...]
+    }
+    """
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     last_activity = db.Column(db.DateTime, default=datetime.utcnow)
