@@ -800,6 +800,8 @@ def send_message():
     
     # Update session context if provided
     if message_context:
+        logger.info(f"Received message_context: dishes={len(message_context.get('dishes', []))}, guest_count={message_context.get('guest_count')}, preferences={message_context.get('preferences', {})}")
+        
         current_context = session.context or {}
         
         # Merge context intelligently - preserve existing data, update with new
@@ -826,6 +828,9 @@ def send_message():
         session.save_preferences_from_context()
         
         db.session.commit()
+        logger.info(f"Updated session.context: dishes={len(current_context.get('dishes', []))}, guest_count={current_context.get('guest_count')}")
+    else:
+        logger.info(f"No message_context provided, using existing session.context")
     
     # Get venue for context
     venue = Venue.query.get(session.venue_id)
@@ -849,7 +854,13 @@ def send_message():
     wines_proposed = current_context.get('wines_proposed', False)
     has_filtered_wines = bool(current_context.get('filtered_wines', []))
     
+    # Log full context for debugging
+    dishes = current_context.get('dishes', [])
+    guest_count = current_context.get('guest_count')
+    preferences = current_context.get('preferences', {})
+    
     logger.info(f"Messages endpoint: session={session.id}, wines_proposed={wines_proposed}, has_filtered_wines={has_filtered_wines}")
+    logger.info(f"Messages endpoint context: dishes={len(dishes)}, guest_count={guest_count}, preferences={preferences}")
     
     # Process message through AI agent
     try:

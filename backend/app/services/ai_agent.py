@@ -247,6 +247,10 @@ class AIAgentService:
                 }
         
         if use_opening_prompt:
+            # Log what we have in context for debugging
+            logger.info(f"Opening prompt context: dishes={active_context.get('dishes', [])}, guest_count={active_context.get('guest_count')}, preferences={active_context.get('preferences', {})}")
+            logger.info(f"Opening prompt gathered_info: {gathered_info}")
+            
             # Use simple opening prompt (no wine list needed, just welcome and recap)
             system_prompt = get_b2c_opening_prompt(
                 venue_name=venue.name,
@@ -254,6 +258,8 @@ class AIAgentService:
                 context=active_context,
                 gathered_info=gathered_info
             )
+            
+            logger.info(f"Generated opening system_prompt: {system_prompt[:500]}...")
             
             # For opening, we don't need to load wines or pass them to AI
             # Just return the AI response without wine recommendations
