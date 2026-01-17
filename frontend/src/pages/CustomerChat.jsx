@@ -302,6 +302,9 @@ function CustomerChat() {
     return progressSteps.indexOf(flowStep) + 1
   }
 
+  // Track if we should send initial message
+  const [shouldSendInitialMessage, setShouldSendInitialMessage] = useState(false)
+
   // Initialize chat with ALL collected preferences
   const initializeChat = () => {
     const context = {
@@ -323,30 +326,43 @@ function CustomerChat() {
       }
     }
     
-    // Build initial message with all context - this will be hidden from UI
-    const dishNames = selectedDishes.map(d => d.name).join(', ')
-    const wineTypeLabel = wineTypeOptions.find(o => o.id === selectedWineType)?.label || selectedWineType
-    const journeyLabel = journeyOptions.find(o => o.id === selectedJourney)?.label || selectedJourney
-    const budgetLabel = selectedBudget === 'nolimit' || selectedBudget === null 
-      ? 'Nessuna restrizione' 
-      : budgetInput.trim() !== '' 
-        ? `€${budgetInput}` 
-        : selectedBudget !== null 
-          ? `€${selectedBudget}` 
-          : 'Nessuna restrizione'
-    
-    let initialMessage = `Siamo in ${guestCount} al tavolo. Abbiamo ordinato: ${dishNames}. Preferiamo ${wineTypeLabel}. Vogliamo ${journeyLabel}. Budget: ${budgetLabel}.`
-    if (selectedJourney === 'journey') {
-      initialMessage += ` Vogliamo un percorso di ${bottlesCount} ${bottlesCount === 1 ? 'bottiglia' : 'bottiglie'}.`
-    }
-    
-    // Set context and send initial message (hidden from display)
-    // The backend will recognize this as initial context message and use opening prompt
+    // Set context first
     if (setInitialContext) {
       setInitialContext(context)
     }
-    sendMessage(initialMessage, context, { hidden: true })
+    
+    // Mark that we should send initial message when sessionToken is ready
+    setShouldSendInitialMessage(true)
   }
+  
+  // Send initial message when sessionToken is available
+  useEffect(() => {
+    if (shouldSendInitialMessage && sessionToken && chatContext) {
+      // Build initial message with all context - this will be hidden from UI
+      const dishNames = selectedDishes.map(d => d.name).join(', ')
+      const wineTypeLabel = wineTypeOptions.find(o => o.id === selectedWineType)?.label || selectedWineType
+      const journeyLabel = journeyOptions.find(o => o.id === selectedJourney)?.label || selectedJourney
+      const budgetLabel = selectedBudget === 'nolimit' || selectedBudget === null 
+        ? 'Nessuna restrizione' 
+        : budgetInput.trim() !== '' 
+          ? `€${budgetInput}` 
+          : selectedBudget !== null 
+            ? `€${selectedBudget}` 
+            : 'Nessuna restrizione'
+      
+      let initialMessage = `Siamo in ${guestCount} al tavolo. Abbiamo ordinato: ${dishNames}. Preferiamo ${wineTypeLabel}. Vogliamo ${journeyLabel}. Budget: ${budgetLabel}.`
+      if (selectedJourney === 'journey') {
+        initialMessage += ` Vogliamo un percorso di ${bottlesCount} ${bottlesCount === 1 ? 'bottiglia' : 'bottiglie'}.`
+      }
+      
+      // Send initial message (hidden from display)
+      // The backend will recognize this as initial context message and use opening prompt
+      sendMessage(initialMessage, chatContext, { hidden: true })
+      
+      // Reset flag
+      setShouldSendInitialMessage(false)
+    }
+  }, [shouldSendInitialMessage, sessionToken, chatContext, sendMessage, selectedDishes, guestCount, selectedWineType, selectedJourney, selectedBudget, budgetInput, bottlesCount])
 
   useEffect(() => {
     if (flowStep === 'chat' && sessionToken && chatContext && !precomputeStatus) {
