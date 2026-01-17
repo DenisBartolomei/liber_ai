@@ -19,16 +19,18 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     
     isInitializingRef.current = true
     try {
-      const response = await chatService.createSession(venueSlug)
+      const response = await chatService.createSession(venueSlug, accessToken)
       setSessionToken(response.data.session_token)
     } catch (err) {
       console.error('Failed to create session:', err)
-      // Create local session token for fallback
-      setSessionToken(`local-${Date.now()}`)
+      setError(
+        err.response?.data?.message ||
+        'Impossibile creare la sessione. Ricarica la pagina e riprova (token di accesso mancante o scaduto).'
+      )
     } finally {
       isInitializingRef.current = false
     }
-  }, [venueSlug])
+  }, [venueSlug, accessToken])
 
   // Initialize session for B2C mode (only if accessToken is available)
   useEffect(() => {
