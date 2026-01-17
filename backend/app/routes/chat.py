@@ -412,10 +412,7 @@ def precompute_rankings():
                 )
 
                 ranking_json = result.get('wine_selection', {})
-                
-                # Save ranking JSON in dedicated field for reliability
-                worker_session.precomputed_ranking_json = ranking_json
-                logger.info(f"Precompute: saved ranking_json to session.precomputed_ranking_json (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
+                logger.info(f"Precompute: computed ranking_json (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
                 
                 precomputed = worker_context.get('precomputed_rankings', {})
                 precomputed.update({
@@ -513,10 +510,9 @@ def proceed_recommendations():
     context = session.context or {}
     precomputed = context.get('precomputed_rankings', {})
     status = precomputed.get('status')
+    ranking_json = precomputed.get('ranking_json', {})
     
-    # Priority: use dedicated field if available, then context
-    stored_ranking_json = session.precomputed_ranking_json
-    logger.info(f"Proceed: status={status}, stored_ranking_json exists={stored_ranking_json is not None}")
+    logger.info(f"Proceed: status={status}, ranking_json exists={bool(ranking_json)}")
 
     conversation_manager = ConversationManager()
     # If the user replied to the opening message, persist their message before proceeding
@@ -531,7 +527,7 @@ def proceed_recommendations():
         except Exception as e:
             logger.warning(f"Proceed: failed to persist user message: {e}")
 
-    if status == 'pending' and not stored_ranking_json:
+    if status == 'pending':
         return jsonify({
             'status': 'pending',
             'message': 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
@@ -540,21 +536,15 @@ def proceed_recommendations():
     ai_agent = AIAgentService()
     communication_service = CommunicationModelService()
 
-    # Use stored ranking JSON if available (priority), else use context, else compute
-    if stored_ranking_json and (stored_ranking_json.get('wines') or stored_ranking_json.get('journeys')):
-        logger.info(f"Proceed: using stored_ranking_json from session field")
-        wine_selection = stored_ranking_json
-        filtered_wines_snapshot = precomputed.get('filtered_wines_snapshot', [])
-        gathered_info = precomputed.get('gathered_info', {})
-        journey_pref = precomputed.get('journey_pref', gathered_info.get('journey_preference', 'single'))
-    elif status == 'ready' and precomputed.get('ranking_json'):
-        logger.info(f"Proceed: using ranking_json from context precomputed_rankings")
-        wine_selection = precomputed.get('ranking_json', {})
+    # Use precomputed ranking from context if available, else compute on-demand
+    if status == 'ready' and ranking_json and (ranking_json.get('wines') or ranking_json.get('journeys')):
+        logger.info(f"Proceed: using ranking_json from context (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
+        wine_selection = ranking_json
         filtered_wines_snapshot = precomputed.get('filtered_wines_snapshot', [])
         gathered_info = precomputed.get('gathered_info', {})
         journey_pref = precomputed.get('journey_pref', gathered_info.get('journey_preference', 'single'))
     else:
-        logger.info(f"Proceed: no precomputed ranking found, computing now...")
+        logger.info(f"Proceed: no precomputed ranking found (status={status}), computing now...")
         result = ai_agent.compute_rankings_for_context(
             session=session,
             venue=venue,
@@ -562,12 +552,20 @@ def proceed_recommendations():
             user_message="Procedi al suggerimento"
         )
         wine_selection = result.get('wine_selection', {})
-        # Save to dedicated field for future use
-        session.precomputed_ranking_json = wine_selection
         filtered_wines_snapshot = result.get('all_wines', [])
         gathered_info = result.get('gathered_info', {})
         journey_pref = result.get('journey_pref', 'single')
-        logger.info(f"Proceed: computed and saved ranking_json (wines={len(wine_selection.get('wines', []))})")
+        
+        # Save to context for future reference
+        context['precomputed_rankings'] = {
+            'status': 'ready',
+            'ranking_json': wine_selection,
+            'filtered_wines_snapshot': filtered_wines_snapshot,
+            'gathered_info': gathered_info,
+            'journey_pref': journey_pref
+        }
+        session.context = context
+        logger.info(f"Proceed: computed and saved ranking_json to context (wines={len(wine_selection.get('wines', []))})")
 
     # wine_selection, filtered_wines_snapshot, gathered_info, journey_pref are now set from one of the above branches
     has_wines = wine_selection.get('wines') and len(wine_selection.get('wines', [])) > 0
