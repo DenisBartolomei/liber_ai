@@ -367,12 +367,24 @@ function CustomerChat() {
 
   useEffect(() => {
     if (flowStep === 'chat' && sessionToken && chatContext && !precomputeStatus) {
+      setPrecomputeStatus('loading')
+      console.log('[CustomerChat] Starting precompute rankings...')
       precomputeRankings(chatContext).then((res) => {
-        if (res?.status) {
-          setPrecomputeStatus(res.status)
+        console.log('[CustomerChat] Precompute response:', res)
+        if (res?.status === 'ready') {
+          setPrecomputeStatus('ready')
+          console.log('[CustomerChat] Precompute ready, wines:', res.wines_count, 'journeys:', res.journeys_count)
+        } else if (res?.status === 'error') {
+          setPrecomputeStatus('error')
+          console.error('[CustomerChat] Precompute error:', res.error || res.message)
         } else {
-          setPrecomputeStatus('pending')
+          // Fallback - treat as ready to allow proceed to compute on-demand
+          setPrecomputeStatus('ready')
+          console.log('[CustomerChat] Precompute fallback to ready')
         }
+      }).catch((err) => {
+        console.error('[CustomerChat] Precompute failed:', err)
+        setPrecomputeStatus('error')
       })
     }
   }, [flowStep, sessionToken, chatContext, precomputeStatus, precomputeRankings])
@@ -438,34 +450,21 @@ function CustomerChat() {
       const response = await proceedRecommendations(autoUserText)
       console.log('[CustomerChat] proceedRecommendations response:', response)
       
-      if (response?.status === 202) {
-        const pendingMessage = response?.data?.message || 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
-        addAssistantMessage(pendingMessage)
-        setPrecomputeStatus('pending')
-        
-        // Auto-retry after 2 seconds
-        setTimeout(async () => {
-          console.log('[CustomerChat] Retrying proceedRecommendations after pending...')
-          const retryResponse = await proceedRecommendations(autoUserText)
-          if (retryResponse && retryResponse.status !== 202) {
-            console.log('[CustomerChat] Retry successful, got recommendations')
-            setShowProceedButton(false)
-          }
-          setProceedLoading(false)
-        }, 2000)
-        return
-      }
-
       if (!response) {
         console.error('[CustomerChat] proceedRecommendations returned null/undefined')
         addAssistantMessage('Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.')
+      } else if (response.status >= 400) {
+        console.error('[CustomerChat] proceedRecommendations error status:', response.status)
+        const errorMsg = response.data?.message || 'Errore nel caricamento dei suggerimenti.'
+        addAssistantMessage(`⚠️ ${errorMsg}`)
       } else {
-        console.log('[CustomerChat] Got recommendations, hiding proceed button')
+        console.log('[CustomerChat] Got recommendations, wines:', response.data?.wines?.length, 'hiding proceed button')
         setShowProceedButton(false)
       }
     } catch (err) {
       console.error('[CustomerChat] Error in handleProceedSuggestions:', err)
-      addAssistantMessage('Si è verificato un errore. Riprova.')
+      const errorMsg = err.response?.data?.message || 'Si è verificato un errore. Riprova.'
+      addAssistantMessage(`⚠️ ${errorMsg}`)
     }
     
     setProceedLoading(false)
@@ -1692,23 +1691,40 @@ function CustomerChat() {
       {flowStep === 'chat' && showProceedButton && (
         <div className="border-t border-burgundy-100 bg-white px-4 pt-4">
           <div className="max-w-2xl mx-auto">
-            <button
-              onClick={() => handleProceedSuggestions()}
-              disabled={proceedLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-            >
-              {proceedLoading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Sto preparando i suggerimenti...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  Procedi al suggerimento
-                </>
-              )}
-            </button>
+            {precomputeStatus === 'loading' ? (
+              <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Preparo le opzioni migliori per te...
+              </div>
+            ) : precomputeStatus === 'error' ? (
+              <button
+                onClick={() => {
+                  setPrecomputeStatus(null) // Trigger retry
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-colors shadow-sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Riprova a caricare
+              </button>
+            ) : (
+              <button
+                onClick={() => handleProceedSuggestions()}
+                disabled={proceedLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              >
+                {proceedLoading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Sto preparando i suggerimenti...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Procedi al suggerimento
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       )}

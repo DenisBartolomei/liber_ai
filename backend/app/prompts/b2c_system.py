@@ -314,7 +314,7 @@ def get_finetuned_selection_prompt(
     max_price: Optional[float] = None
 ) -> str:
     """
-    Generate prompt for fine-tuned model to select wines and return structured JSON.
+    Generate prompt to select wines and return structured JSON.
     
     Args:
         venue_name: Name of the venue

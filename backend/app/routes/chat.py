@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import uuid
 import json
 import time
-import threading
 import hashlib
 import logging
 from flask import Blueprint, request, jsonify, current_app
@@ -329,8 +328,10 @@ def create_session():
 @chat_bp.route('/precompute-rankings', methods=['POST'])
 def precompute_rankings():
     """
-    Precompute wine rankings in background for a session.
+    Precompute wine rankings SYNCHRONOUSLY for a session.
+    This ensures the ranking is ready before the user can click "proceed".
     """
+    start_time = time.time()
     data = request.get_json()
     session_token = data.get('session_token')
     incoming_context = data.get('context')
@@ -378,89 +379,79 @@ def precompute_rankings():
 
     filters_hash = _compute_filters_hash(venue.id, context)
 
+    # Check if already computed with same filters
     existing = context.get('precomputed_rankings', {})
-    if existing.get('filters_hash') == filters_hash and existing.get('status') in ['pending', 'ready']:
+    if existing.get('filters_hash') == filters_hash and existing.get('status') == 'ready':
+        logger.info(f"Precompute: using cached ranking (hash={filters_hash[:8]}...)")
         return jsonify({
-            'status': existing.get('status'),
-            'filters_hash': filters_hash
+            'status': 'ready',
+            'filters_hash': filters_hash,
+            'cached': True
         }), 200
 
-    context['precomputed_rankings'] = {
-        'status': 'pending',
-        'started_at': datetime.utcnow().isoformat(),
-        'filters_hash': filters_hash
-    }
-    session.context = context
-    db.session.commit()
+    # Compute rankings SYNCHRONOUSLY
+    logger.info(f"Precompute: starting synchronous computation for session {session.id}")
+    
+    try:
+        ai_agent = AIAgentService()
+        result = ai_agent.compute_rankings_for_context(
+            session=session,
+            venue=venue,
+            active_context=context,
+            user_message="Precompute ranking"
+        )
 
-    def _background_job(app, session_id, venue_id, expected_hash):
-        with app.app_context():
-            start_time = time.time()
-            try:
-                worker_session = Session.query.get(session_id)
-                worker_venue = Venue.query.get(venue_id)
-                if not worker_session or not worker_venue:
-                    return
+        ranking_json = result.get('wine_selection', {})
+        wines_count = len(ranking_json.get('wines', []))
+        journeys_count = len(ranking_json.get('journeys', []))
+        
+        logger.info(f"Precompute: computed ranking_json (wines={wines_count}, journeys={journeys_count})")
+        
+        # Save to context
+        latency_ms = int((time.time() - start_time) * 1000)
+        context['precomputed_rankings'] = {
+            'status': 'ready',
+            'completed_at': datetime.utcnow().isoformat(),
+            'filters_hash': filters_hash,
+            'filtered_wines_snapshot': result.get('all_wines', []),
+            'ranking_json': ranking_json,
+            'gathered_info': result.get('gathered_info', {}),
+            'journey_pref': result.get('journey_pref', 'single'),
+            'precompute_latency_ms': latency_ms
+        }
+        session.context = context
+        db.session.commit()
+        
+        logger.info(f"Precompute: saved to context, latency={latency_ms}ms")
 
-                worker_context = worker_session.context or {}
-                ai_agent = AIAgentService()
-                result = ai_agent.compute_rankings_for_context(
-                    session=worker_session,
-                    venue=worker_venue,
-                    active_context=worker_context,
-                    user_message="Precompute ranking"
-                )
-
-                ranking_json = result.get('wine_selection', {})
-                logger.info(f"Precompute: computed ranking_json (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
-                
-                precomputed = worker_context.get('precomputed_rankings', {})
-                precomputed.update({
-                    'status': 'ready',
-                    'completed_at': datetime.utcnow().isoformat(),
-                    'filters_hash': expected_hash,
-                    'filtered_wines_snapshot': result.get('all_wines', []),
-                    'ranking_json': ranking_json,  # Also keep in context for backward compatibility
-                    'gathered_info': result.get('gathered_info', {}),
-                    'journey_pref': result.get('journey_pref', 'single'),
-                    'precompute_latency_ms': int((time.time() - start_time) * 1000)
-                })
-                worker_context['precomputed_rankings'] = precomputed
-                worker_session.context = worker_context
-                db.session.commit()
-            except Exception as e:
-                try:
-                    worker_session = Session.query.get(session_id)
-                    if worker_session:
-                        worker_context = worker_session.context or {}
-                        precomputed = worker_context.get('precomputed_rankings', {})
-                        precomputed.update({
-                            'status': 'error',
-                            'completed_at': datetime.utcnow().isoformat(),
-                            'filters_hash': expected_hash,
-                            'error': str(e),
-                            'precompute_latency_ms': int((time.time() - start_time) * 1000)
-                        })
-                        worker_context['precomputed_rankings'] = precomputed
-                        worker_session.context = worker_context
-                        db.session.commit()
-                except Exception:
-                    pass
-            finally:
-                db.session.remove()
-
-    app = current_app._get_current_object()
-    thread = threading.Thread(
-        target=_background_job,
-        args=(app, session.id, venue.id, filters_hash),
-        daemon=True
-    )
-    thread.start()
-
-    return jsonify({
-        'status': 'pending',
-        'filters_hash': filters_hash
-    }), 202
+        return jsonify({
+            'status': 'ready',
+            'filters_hash': filters_hash,
+            'wines_count': wines_count,
+            'journeys_count': journeys_count,
+            'latency_ms': latency_ms
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Precompute: error computing rankings: {e}", exc_info=True)
+        
+        # Save error status
+        latency_ms = int((time.time() - start_time) * 1000)
+        context['precomputed_rankings'] = {
+            'status': 'error',
+            'completed_at': datetime.utcnow().isoformat(),
+            'filters_hash': filters_hash,
+            'error': str(e),
+            'precompute_latency_ms': latency_ms
+        }
+        session.context = context
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'error',
+            'message': 'Errore nel calcolo dei suggerimenti. Riprova.',
+            'error': str(e)
+        }), 500
 
 
 @chat_bp.route('/precompute-rankings/status', methods=['GET'])
@@ -489,190 +480,207 @@ def proceed_recommendations():
     Proceed to recommendations using precomputed rankings if available.
     """
     start_time = time.time()
-    data = request.get_json()
-    session_token = data.get('session_token')
-    user_text = data.get('message')
-
-    if not session_token:
-        return jsonify({'message': 'session_token è obbligatorio'}), 400
-
-    session = Session.query.filter_by(session_token=session_token).first()
-    if not session:
-        return jsonify({'message': 'Sessione non trovata'}), 404
-
-    if session.status != 'active':
-        return jsonify({'message': 'Sessione terminata'}), 400
-
-    venue = Venue.query.get(session.venue_id)
-    if not venue:
-        return jsonify({'message': 'Locale non trovato'}), 404
-
-    context = session.context or {}
-    precomputed = context.get('precomputed_rankings', {})
-    status = precomputed.get('status')
-    ranking_json = precomputed.get('ranking_json', {})
     
-    logger.info(f"Proceed: status={status}, ranking_json exists={bool(ranking_json)}")
-
-    conversation_manager = ConversationManager()
-    # If the user replied to the opening message, persist their message before proceeding
-    if user_text and isinstance(user_text, str) and user_text.strip():
-        try:
-            conversation_manager.add_message(
-                session=session,
-                role='user',
-                content=user_text.strip()
-            )
-            logger.info(f"Proceed: saved user message '{user_text.strip()[:50]}...'")
-        except Exception as e:
-            logger.warning(f"Proceed: failed to persist user message: {e}")
-
-    if status == 'pending':
-        return jsonify({
-            'status': 'pending',
-            'message': 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
-        }), 202
-
-    ai_agent = AIAgentService()
-    communication_service = CommunicationModelService()
-
-    # Use precomputed ranking from context if available, else compute on-demand
-    if status == 'ready' and ranking_json and (ranking_json.get('wines') or ranking_json.get('journeys')):
-        logger.info(f"Proceed: using ranking_json from context (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
-        wine_selection = ranking_json
-        filtered_wines_snapshot = precomputed.get('filtered_wines_snapshot', [])
-        gathered_info = precomputed.get('gathered_info', {})
-        journey_pref = precomputed.get('journey_pref', gathered_info.get('journey_preference', 'single'))
-    else:
-        logger.info(f"Proceed: no precomputed ranking found (status={status}), computing now...")
-        result = ai_agent.compute_rankings_for_context(
-            session=session,
-            venue=venue,
-            active_context=context,
-            user_message="Procedi al suggerimento"
-        )
-        wine_selection = result.get('wine_selection', {})
-        filtered_wines_snapshot = result.get('all_wines', [])
-        gathered_info = result.get('gathered_info', {})
-        journey_pref = result.get('journey_pref', 'single')
-        
-        # Save to context for future reference
-        context['precomputed_rankings'] = {
-            'status': 'ready',
-            'ranking_json': wine_selection,
-            'filtered_wines_snapshot': filtered_wines_snapshot,
-            'gathered_info': gathered_info,
-            'journey_pref': journey_pref
-        }
-        session.context = context
-        logger.info(f"Proceed: computed and saved ranking_json to context (wines={len(wine_selection.get('wines', []))})")
-
-    # wine_selection, filtered_wines_snapshot, gathered_info, journey_pref are now set from one of the above branches
-    has_wines = wine_selection.get('wines') and len(wine_selection.get('wines', [])) > 0
-    has_journeys = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
-
-    if not has_wines and not has_journeys:
-        return jsonify({'message': 'Non sono riuscito a preparare i suggerimenti. Riprova.'}), 503
-
-    wine_selection_for_communication = wine_selection.copy()
-    if journey_pref == 'single' and has_wines:
-        wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
-
-    history = session.get_conversation_history(limit=20)
-    proceed_user_message = user_text.strip() if isinstance(user_text, str) and user_text.strip() else "Procedi al suggerimento"
     try:
-        ai_message = communication_service.generate_message(
-            venue_name=venue.name,
-            sommelier_style=venue.sommelier_style or 'professional',
-            wine_selection=wine_selection_for_communication,
-            context=context,
-            gathered_info=gathered_info,
-            history=history,
-            user_message=proceed_user_message
+        data = request.get_json()
+        session_token = data.get('session_token')
+        user_text = data.get('message')
+        
+        logger.info(f"Proceed: received request, session_token exists={bool(session_token)}, user_text='{(user_text or '')[:30]}...'")
+
+        if not session_token:
+            return jsonify({'message': 'session_token è obbligatorio'}), 400
+
+        session = Session.query.filter_by(session_token=session_token).first()
+        if not session:
+            logger.warning(f"Proceed: session not found for token {session_token[:8]}...")
+            return jsonify({'message': 'Sessione non trovata'}), 404
+
+        if session.status != 'active':
+            return jsonify({'message': 'Sessione terminata'}), 400
+
+        venue = Venue.query.get(session.venue_id)
+        if not venue:
+            return jsonify({'message': 'Locale non trovato'}), 404
+
+        context = session.context or {}
+        precomputed = context.get('precomputed_rankings', {})
+        status = precomputed.get('status')
+        ranking_json = precomputed.get('ranking_json', {})
+        
+        wines_count = len(ranking_json.get('wines', [])) if ranking_json else 0
+        journeys_count = len(ranking_json.get('journeys', [])) if ranking_json else 0
+        logger.info(f"Proceed: session={session.id}, status={status}, ranking_json wines={wines_count}, journeys={journeys_count}")
+
+        conversation_manager = ConversationManager()
+        # If the user replied to the opening message, persist their message before proceeding
+        if user_text and isinstance(user_text, str) and user_text.strip():
+            try:
+                conversation_manager.add_message(
+                    session=session,
+                    role='user',
+                    content=user_text.strip()
+                )
+                logger.info(f"Proceed: saved user message '{user_text.strip()[:50]}...'")
+            except Exception as e:
+                logger.warning(f"Proceed: failed to persist user message: {e}")
+
+        if status == 'pending':
+            return jsonify({
+                'status': 'pending',
+                'message': 'Sto preparando i suggerimenti, tra pochi secondi saranno pronti.'
+            }), 202
+
+        ai_agent = AIAgentService()
+        communication_service = CommunicationModelService()
+
+        # Use precomputed ranking from context if available, else compute on-demand
+        if status == 'ready' and ranking_json and (ranking_json.get('wines') or ranking_json.get('journeys')):
+            logger.info(f"Proceed: using ranking_json from context (wines={len(ranking_json.get('wines', []))}, journeys={len(ranking_json.get('journeys', []))})")
+            wine_selection = ranking_json
+            filtered_wines_snapshot = precomputed.get('filtered_wines_snapshot', [])
+            gathered_info = precomputed.get('gathered_info', {})
+            journey_pref = precomputed.get('journey_pref', gathered_info.get('journey_preference', 'single'))
+        else:
+            logger.info(f"Proceed: no precomputed ranking found (status={status}), computing now...")
+            result = ai_agent.compute_rankings_for_context(
+                session=session,
+                venue=venue,
+                active_context=context,
+                user_message="Procedi al suggerimento"
+            )
+            wine_selection = result.get('wine_selection', {})
+            filtered_wines_snapshot = result.get('all_wines', [])
+            gathered_info = result.get('gathered_info', {})
+            journey_pref = result.get('journey_pref', 'single')
+            
+            # Save to context for future reference
+            context['precomputed_rankings'] = {
+                'status': 'ready',
+                'ranking_json': wine_selection,
+                'filtered_wines_snapshot': filtered_wines_snapshot,
+                'gathered_info': gathered_info,
+                'journey_pref': journey_pref
+            }
+            session.context = context
+            logger.info(f"Proceed: computed and saved ranking_json to context (wines={len(wine_selection.get('wines', []))})")
+
+        # wine_selection, filtered_wines_snapshot, gathered_info, journey_pref are now set from one of the above branches
+        has_wines = wine_selection.get('wines') and len(wine_selection.get('wines', [])) > 0
+        has_journeys = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
+
+        if not has_wines and not has_journeys:
+            return jsonify({'message': 'Non sono riuscito a preparare i suggerimenti. Riprova.'}), 503
+
+        wine_selection_for_communication = wine_selection.copy()
+        if journey_pref == 'single' and has_wines:
+            wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
+
+        history = session.get_conversation_history(limit=20)
+        proceed_user_message = user_text.strip() if isinstance(user_text, str) and user_text.strip() else "Procedi al suggerimento"
+        try:
+            ai_message = communication_service.generate_message(
+                venue_name=venue.name,
+                sommelier_style=venue.sommelier_style or 'professional',
+                wine_selection=wine_selection_for_communication,
+                context=context,
+                gathered_info=gathered_info,
+                history=history,
+                user_message=proceed_user_message
+            )
+        except Exception as e:
+            logger.warning(f"Communication model failed in proceed: {e}")
+            ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
+
+        # CommunicationModelService can return None/empty; never persist null content
+        if not ai_message or not isinstance(ai_message, str) or not ai_message.strip():
+            logger.warning("Proceed: communication message empty; using fallback message")
+            ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
+
+        if journey_pref == 'journey' and has_journeys:
+            all_wine_ids = []
+            for journey in wine_selection.get('journeys', []):
+                all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
+
+            response_payload = {
+                'message': ai_message,
+                'journeys': wine_selection.get('journeys', []),
+                'wine_ids': list(set(all_wine_ids)),
+                'wines': [],
+                'suggestions': [],
+                'mode': 'journey',
+                'metadata': {
+                    'model': communication_service.model,
+                    'tokens_used': 0,
+                    'gathered_info': gathered_info,
+                    'is_recommending': True,
+                    'precomputed': True
+                }
+            }
+        else:
+            all_ranked_wines = wine_selection.get('wines', [])
+            wines_for_display = all_ranked_wines[:3]
+            wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
+
+            response_payload = {
+                'message': ai_message,
+                'wines': wines_for_display,
+                'all_rankings': all_ranked_wines,
+                'wine_ids': wine_ids,
+                'journeys': [],
+                'suggestions': [],
+                'mode': 'single',
+                'metadata': {
+                    'model': communication_service.model,
+                    'tokens_used': 0,
+                    'gathered_info': gathered_info,
+                    'is_recommending': True,
+                    'precomputed': True
+                }
+            }
+
+        assistant_message = conversation_manager.add_message(
+            session=session,
+            role='assistant',
+            content=ai_message,
+            metadata=response_payload.get('metadata'),
+            products=response_payload.get('wine_ids')
         )
+
+        if response_payload.get('metadata', {}).get('is_recommending'):
+            track_wine_proposals(session.id, assistant_message.id, response_payload)
+
+        context = session.context or {}
+        context['wines_proposed'] = True
+        if filtered_wines_snapshot:
+            context['filtered_wines'] = filtered_wines_snapshot
+        # Persist immutable recommendation state for later clarifications (no re-ranking)
+        context['recommendation_state'] = {
+            'mode': response_payload.get('mode'),
+            'wines': response_payload.get('wines', []),
+            'journeys': response_payload.get('journeys', []),
+            'wine_ids': response_payload.get('wine_ids', []),
+            # anchor message id to fetch full rankings via /messages/<id>/rankings
+            'rankings_message_id': assistant_message.id
+        }
+        context['proceed_clicked_at'] = datetime.utcnow().isoformat()
+        latency_ms = int((time.time() - start_time) * 1000)
+        context['proceed_latency_ms'] = latency_ms
+        session.context = context
+        session.update_activity()
+        db.session.commit()
+
+        response_payload['message_id'] = assistant_message.id
+        logger.info(f"Proceed: success, message_id={assistant_message.id}, wines={len(response_payload.get('wines', []))}, latency={latency_ms}ms")
+        return jsonify(response_payload), 200
+    
     except Exception as e:
-        logger.warning(f"Communication model failed in proceed: {e}")
-        ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
-
-    # CommunicationModelService can return None/empty; never persist null content
-    if not ai_message or not isinstance(ai_message, str) or not ai_message.strip():
-        logger.warning("Proceed: communication message empty; using fallback message")
-        ai_message = ai_agent._generate_fallback_message(wine_selection, journey_pref)
-
-    if journey_pref == 'journey' and has_journeys:
-        all_wine_ids = []
-        for journey in wine_selection.get('journeys', []):
-            all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
-
-        response_payload = {
-            'message': ai_message,
-            'journeys': wine_selection.get('journeys', []),
-            'wine_ids': list(set(all_wine_ids)),
-            'wines': [],
-            'suggestions': [],
-            'mode': 'journey',
-            'metadata': {
-                'model': communication_service.model,
-                'tokens_used': 0,
-                'gathered_info': gathered_info,
-                'is_recommending': True,
-                'precomputed': True
-            }
-        }
-    else:
-        all_ranked_wines = wine_selection.get('wines', [])
-        wines_for_display = all_ranked_wines[:3]
-        wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
-
-        response_payload = {
-            'message': ai_message,
-            'wines': wines_for_display,
-            'all_rankings': all_ranked_wines,
-            'wine_ids': wine_ids,
-            'journeys': [],
-            'suggestions': [],
-            'mode': 'single',
-            'metadata': {
-                'model': communication_service.model,
-                'tokens_used': 0,
-                'gathered_info': gathered_info,
-                'is_recommending': True,
-                'precomputed': True
-            }
-        }
-
-    assistant_message = conversation_manager.add_message(
-        session=session,
-        role='assistant',
-        content=ai_message,
-        metadata=response_payload.get('metadata'),
-        products=response_payload.get('wine_ids')
-    )
-
-    if response_payload.get('metadata', {}).get('is_recommending'):
-        track_wine_proposals(session.id, assistant_message.id, response_payload)
-
-    context = session.context or {}
-    context['wines_proposed'] = True
-    if filtered_wines_snapshot:
-        context['filtered_wines'] = filtered_wines_snapshot
-    # Persist immutable recommendation state for later clarifications (no re-ranking)
-    context['recommendation_state'] = {
-        'mode': response_payload.get('mode'),
-        'wines': response_payload.get('wines', []),
-        'journeys': response_payload.get('journeys', []),
-        'wine_ids': response_payload.get('wine_ids', []),
-        # anchor message id to fetch full rankings via /messages/<id>/rankings
-        'rankings_message_id': assistant_message.id
-    }
-    context['proceed_clicked_at'] = datetime.utcnow().isoformat()
-    context['proceed_latency_ms'] = int((time.time() - start_time) * 1000)
-    session.context = context
-    session.update_activity()
-    db.session.commit()
-
-    response_payload['message_id'] = assistant_message.id
-    return jsonify(response_payload), 200
+        logger.error(f"Proceed: unexpected error: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({
+            'message': 'Si è verificato un errore imprevisto. Riprova.',
+            'error': str(e)
+        }), 500
 
 
 @chat_bp.route('/confirm-wines', methods=['POST'])
