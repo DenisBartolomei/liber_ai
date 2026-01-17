@@ -81,16 +81,19 @@ Rispondi SOLO con un array JSON valido. Nessun altro testo."""
             })
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.vision_model,
-                messages=[
+            create_kwargs = {
+                "model": self.vision_model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": content}
+                    {"role": "user", "content": content},
                 ],
-                reasoning_effort=self.reasoning_effort,
-                temperature=0.2,
-                max_tokens=4096
-            )
+                "reasoning_effort": self.reasoning_effort,
+                "max_tokens": 4096,
+            }
+            if not str(self.vision_model).startswith("gpt-5"):
+                create_kwargs["temperature"] = 0.2
+
+            response = self.client.chat.completions.create(**create_kwargs)
             
             result = response.choices[0].message.content.strip()
             logger.debug(f"Vision API response: {result[:500]}...")
@@ -178,16 +181,19 @@ Esempio output:
 ]"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            create_kwargs = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Estrai i vini da questa carta:\n\n{wine_text}"}
+                    {"role": "user", "content": f"Estrai i vini da questa carta:\n\n{wine_text}"},
                 ],
-                reasoning_effort=self.reasoning_effort,
-                temperature=0.3,
-                max_tokens=4000
-            )
+                "reasoning_effort": self.reasoning_effort,
+                "max_tokens": 4000,
+            }
+            if not str(self.model).startswith("gpt-5"):
+                create_kwargs["temperature"] = 0.3
+
+            response = self.client.chat.completions.create(**create_kwargs)
             
             content = response.choices[0].message.content.strip()
             

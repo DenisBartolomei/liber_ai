@@ -60,16 +60,19 @@ Esempio output:
 ]"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            create_kwargs = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Estrai i piatti da questo menù:\n\n{menu_text}"}
+                    {"role": "user", "content": f"Estrai i piatti da questo menù:\n\n{menu_text}"},
                 ],
-                reasoning_effort=self.reasoning_effort,
-                temperature=0.3,
-                max_tokens=4000
-            )
+                "reasoning_effort": self.reasoning_effort,
+                "max_tokens": 4000,
+            }
+            if not str(self.model).startswith("gpt-5"):
+                create_kwargs["temperature"] = 0.3
+
+            response = self.client.chat.completions.create(**create_kwargs)
             
             content = response.choices[0].message.content.strip()
             

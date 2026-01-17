@@ -105,15 +105,19 @@ class FineTunedWineSelector:
                 f"(estimated: {len(all_wines)} wines × {estimated_tokens_per_wine} tokens + {base_tokens} base, max 8000)"
             )
             
-            # Call fine-tuned model with JSON response format
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.3,  # Lower temperature for more consistent selections
-                reasoning_effort=self.reasoning_effort,
-                max_completion_tokens=max_tokens,  # Dynamic limit based on number of wines (max 8000)
-                response_format={"type": "json_object"}
-            )
+            # Call model with JSON response format
+            create_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "reasoning_effort": self.reasoning_effort,
+                "max_completion_tokens": max_tokens,  # Dynamic limit based on number of wines (max 8000)
+                "response_format": {"type": "json_object"},
+            }
+            # NOTE: gpt-5.* only supports default temperature; omit it to avoid 400 errors.
+            if not str(self.model).startswith("gpt-5"):
+                create_kwargs["temperature"] = 0.3  # Lower temperature for more consistent selections
+
+            response = self.client.chat.completions.create(**create_kwargs)
             
             # Check if response was truncated
             finish_reason = response.choices[0].finish_reason

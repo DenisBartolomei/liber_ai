@@ -110,17 +110,21 @@ Rispondi in formato JSON:"""
         try:
             logger.info(f"Generating description for wine: {wine_name} ({wine_type})")
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
+            create_kwargs = {
+                "model": self.model,
+                "messages": [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_prompt},
                 ],
-                reasoning_effort=self.reasoning_effort,
-                temperature=0.7,  # Slightly creative but consistent
-                max_tokens=500,  # Increased for JSON response
-                response_format={"type": "json_object"}  # Force JSON response
-            )
+                "reasoning_effort": self.reasoning_effort,
+                "max_tokens": 500,  # Increased for JSON response
+                "response_format": {"type": "json_object"},  # Force JSON response
+            }
+            # NOTE: gpt-5.* only supports default temperature; omit it to avoid 400 errors.
+            if not str(self.model).startswith("gpt-5"):
+                create_kwargs["temperature"] = 0.7  # Slightly creative but consistent
+
+            response = self.client.chat.completions.create(**create_kwargs)
             
             content = response.choices[0].message.content.strip()
             
