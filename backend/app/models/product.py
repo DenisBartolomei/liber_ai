@@ -19,25 +19,47 @@ class Product(db.Model):
     name = db.Column(db.String(255), nullable=False)
     type = db.Column(db.String(50), nullable=False)  # red, white, rose, sparkling, dessert, fortified
     
+    # Wine Details
+    region = db.Column(db.String(255), nullable=True)
+    country = db.Column(db.String(100), nullable=True)
+    appellation = db.Column(db.String(255), nullable=True)
+    grape_variety = db.Column(db.String(255), nullable=True)
+    vintage = db.Column(db.Integer, nullable=True)
+    
+    # Producer Info
+    producer = db.Column(db.String(255), nullable=True)
+    winemaker = db.Column(db.String(255), nullable=True)
+    
+    # Wine Identity Card fields
+    alcohol_content = db.Column(db.Float, nullable=True)
+    body = db.Column(db.Integer, nullable=True)  # 1-10 scale
+    sweetness = db.Column(db.String(50), nullable=True)
+    tannin_level = db.Column(db.Integer, nullable=True)  # 1-10 scale
+    acidity_level = db.Column(db.Integer, nullable=True)  # 1-10 scale
+    color = db.Column(db.String(255), nullable=True)  # Wine color description
+    aromas = db.Column(db.Text, nullable=True)  # Wine aromas description
+    
     # Pricing
     price = db.Column(db.Numeric(10, 2), nullable=False)
+    price_glass = db.Column(db.Numeric(10, 2), nullable=True)
     cost_price = db.Column(db.Numeric(10, 2), nullable=True)  # For margin calculations
     margin = db.Column(db.Numeric(10, 2), nullable=True)  # Calculated margin (price - cost_price)
     
+    # Description and notes
+    description = db.Column(db.Text, nullable=True)
+    tasting_notes = db.Column(db.Text, nullable=True)
+    aroma_profile = db.Column(db.JSON, nullable=True)
+    
+    # Food Pairings
+    food_pairings = db.Column(db.JSON, nullable=True)
+    
     # Inventory
     is_available = db.Column(db.Boolean, default=True, nullable=True)
+    stock_quantity = db.Column(db.Integer, nullable=True)
     
     # Metadata
     image_url = db.Column(db.String(500), nullable=True)  # URL for label image
-    
-    # Wine Identity Card fields (optional - may not exist in all databases)
-    # These are accessed via getattr() in to_dict() to avoid errors if columns don't exist
-    # Note: If these columns exist in your database, you can uncomment them:
-    # color = db.Column(db.String(255), nullable=True)  # Wine color description
-    # aromas = db.Column(db.Text, nullable=True)  # Wine aromas description
-    # body = db.Column(db.Integer, nullable=True)  # Body level 1-10
-    # tannin_level = db.Column(db.Integer, nullable=True)  # Tannin level 1-10
-    # acidity_level = db.Column(db.Integer, nullable=True)  # Acidity level 1-10
+    is_featured = db.Column(db.Boolean, default=False, nullable=True)
     
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=True)
@@ -54,62 +76,67 @@ class Product(db.Model):
             'name': self.name,
             'type': self.type,
             'price': float(self.price) if self.price else None,
-            'is_available': self.is_available if hasattr(self, 'is_available') else True
+            'is_available': self.is_available if self.is_available is not None else True
         }
         
-        # Try to get optional fields using getattr (they may not exist in DB)
-        # These will be None if the column doesn't exist
-        region = getattr(self, 'region', None)
-        if region:
-            data['region'] = region
+        # Wine details - always include if available
+        if self.region:
+            data['region'] = self.region
+        if self.country:
+            data['country'] = self.country
+        if self.appellation:
+            data['appellation'] = self.appellation
+        if self.grape_variety:
+            data['grape_variety'] = self.grape_variety
+        if self.vintage:
+            data['vintage'] = self.vintage
+        if self.producer:
+            data['producer'] = self.producer
             
-        grape_variety = getattr(self, 'grape_variety', None)
-        if grape_variety:
-            data['grape_variety'] = grape_variety
-            
-        vintage = getattr(self, 'vintage', None)
-        if vintage:
-            data['vintage'] = vintage
-            
-        description = getattr(self, 'description', None)
-        if description:
-            data['description'] = description
-            
-        image_url = getattr(self, 'image_url', None)
-        if image_url:
-            data['image_url'] = image_url
+        # Description and notes - important for AI context
+        if self.description:
+            data['description'] = self.description
+        if self.tasting_notes:
+            data['tasting_notes'] = self.tasting_notes
+        if self.aromas:
+            data['aromas'] = self.aromas
             
         # Wine Identity Card fields
-        color = getattr(self, 'color', None)
-        if color:
-            data['color'] = color
+        if self.color:
+            data['color'] = self.color
+        if self.body is not None:
+            data['body'] = self.body
+        if self.tannin_level is not None:
+            data['tannin_level'] = self.tannin_level
+        if self.acidity_level is not None:
+            data['acidity_level'] = self.acidity_level
+        if self.alcohol_content is not None:
+            data['alcohol_content'] = self.alcohol_content
+        if self.sweetness:
+            data['sweetness'] = self.sweetness
             
-        aromas = getattr(self, 'aromas', None)
-        if aromas:
-            data['aromas'] = aromas
+        # Food pairings
+        if self.food_pairings:
+            data['food_pairings'] = self.food_pairings
             
-        body = getattr(self, 'body', None)
-        if body is not None:
-            data['body'] = body
-            
-        tannin_level = getattr(self, 'tannin_level', None)
-        if tannin_level is not None:
-            data['tannin_level'] = tannin_level
-            
-        acidity_level = getattr(self, 'acidity_level', None)
-        if acidity_level is not None:
-            data['acidity_level'] = acidity_level
+        # Image
+        if self.image_url:
+            data['image_url'] = self.image_url
         
         if detailed:
-            cost_price = getattr(self, 'cost_price', None)
-            if cost_price:
-                data['cost_price'] = float(cost_price)
-            margin = getattr(self, 'margin', None)
-            if margin:
-                data['margin'] = float(margin)
-            if hasattr(self, 'created_at') and self.created_at:
+            if self.cost_price:
+                data['cost_price'] = float(self.cost_price)
+            if self.margin:
+                data['margin'] = float(self.margin)
+            if self.price_glass:
+                data['price_glass'] = float(self.price_glass)
+            if self.stock_quantity is not None:
+                data['stock_quantity'] = self.stock_quantity
+            if self.is_featured is not None:
+                data['is_featured'] = self.is_featured
+            if self.created_at:
                 data['created_at'] = self.created_at.isoformat()
-            if hasattr(self, 'updated_at') and self.updated_at:
+            if self.updated_at:
                 data['updated_at'] = self.updated_at.isoformat()
         
         return data
@@ -136,15 +163,21 @@ class Product(db.Model):
             f"Prezzo: €{self.price}" if self.price else ""
         ]
         
+        # Add region if available
+        if self.region:
+            parts.append(f"Regione: {self.region}")
+        
         # Add grape variety if available
-        grape_variety = getattr(self, 'grape_variety', None)
-        if grape_variety:
-            parts.append(f"Uvaggio: {grape_variety}")
+        if self.grape_variety:
+            parts.append(f"Uvaggio: {self.grape_variety}")
         
         # Add description if available
-        description = getattr(self, 'description', None)
-        if description:
-            parts.append(f"Descrizione: {description}")
+        if self.description:
+            parts.append(f"Descrizione: {self.description}")
+        
+        # Add tasting notes if available
+        if self.tasting_notes:
+            parts.append(f"Note: {self.tasting_notes}")
         
         return " | ".join([p for p in parts if p])
 

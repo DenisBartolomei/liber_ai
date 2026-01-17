@@ -120,11 +120,20 @@ class AIAgentService:
                 active_context['guest_count'] = 2  # Default
         
         # Check if wines have already been proposed (clarification mode)
+        # Also check session.context directly as a fallback
         wines_proposed = active_context.get('wines_proposed', False)
         filtered_wines = active_context.get('filtered_wines', [])
         
-        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, wines_proposed={wines_proposed}, message_count={message_count}")
-        logger.info(f"Using model for {'opening' if use_opening_prompt else ('clarification' if wines_proposed else 'recommendation')}: {self.model}")
+        # Double-check from session.context if not found in passed context
+        if not wines_proposed:
+            session_ctx = getattr(session, 'context', None) or {}
+            wines_proposed = session_ctx.get('wines_proposed', False)
+            if wines_proposed and not filtered_wines:
+                filtered_wines = session_ctx.get('filtered_wines', [])
+                logger.info(f"Found wines_proposed in session.context (fallback): wines_proposed={wines_proposed}, filtered_wines={len(filtered_wines)}")
+        
+        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, wines_proposed={wines_proposed}, filtered_wines_count={len(filtered_wines)}, message_count={message_count}")
+        logger.info(f"Using mode: {'opening' if use_opening_prompt else ('clarification' if wines_proposed and filtered_wines else 'recommendation')} with model: {self.model}")
         
         # CLARIFICATION MODE: Wines have already been proposed, only answer questions
         if wines_proposed and filtered_wines:

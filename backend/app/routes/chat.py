@@ -841,8 +841,15 @@ def send_message():
         content=message_content
     )
     
-    # Refresh session to get updated message_count
+    # Refresh session to get updated message_count AND latest context from DB
     db.session.refresh(session)
+    
+    # Get the latest context from session (includes wines_proposed, filtered_wines from proceed-recommendations)
+    current_context = session.context or {}
+    wines_proposed = current_context.get('wines_proposed', False)
+    has_filtered_wines = bool(current_context.get('filtered_wines', []))
+    
+    logger.info(f"Messages endpoint: session={session.id}, wines_proposed={wines_proposed}, has_filtered_wines={has_filtered_wines}")
     
     # Process message through AI agent
     try:
@@ -851,7 +858,7 @@ def send_message():
             session=session,
             venue=venue,
             user_message=message_content,
-            context=session.context  # Pass context with dishes and guest_count
+            context=current_context  # Pass refreshed context
         )
         
         # Log response structure for debugging
