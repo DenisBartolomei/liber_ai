@@ -84,8 +84,9 @@ class CommunicationModelService:
         
         try:
             # Determine max tokens based on mode (journeys need slightly more for 3 paths)
+            # NOTE: gpt-5-mini uses tokens for internal reasoning BEFORE output, so we need more tokens
             is_journey_mode = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
-            max_tokens = 250 if is_journey_mode else 200  # Slightly more for journeys with up to 3 paths
+            max_tokens = 800 if is_journey_mode else 600  # More tokens for reasoning models
             
             # #region agent log
             logger.warning(f"[DEBUG-D] COMM: Calling model={self.model}, wines_count={len(wine_selection.get('wines', []))}, journeys_count={len(wine_selection.get('journeys', []))}, max_tokens={max_tokens}, messages_count={len(messages)}")

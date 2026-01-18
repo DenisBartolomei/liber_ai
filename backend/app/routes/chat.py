@@ -8,6 +8,7 @@ import time
 import hashlib
 import logging
 from flask import Blueprint, request, jsonify, current_app
+from sqlalchemy.orm.attributes import flag_modified
 from app import db
 from app.models import Venue, Session, Message, WineProposal, Product, AccessToken
 from app.services.ai_agent import AIAgentService
@@ -733,6 +734,8 @@ def proceed_recommendations():
         latency_ms = int((time.time() - start_time) * 1000)
         context['proceed_latency_ms'] = latency_ms
         session.context = context
+        # CRITICAL: Flag the JSONB field as modified so SQLAlchemy detects the change
+        flag_modified(session, 'context')
         session.update_activity()
         db.session.commit()
         # #region agent log
