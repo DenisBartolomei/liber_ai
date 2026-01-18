@@ -100,32 +100,20 @@ def get_b2c_opening_prompt(
     info = gathered_info or {}
     journey_pref = info.get('journey_preference', 'single')
     wine_type = info.get('wine_type', 'any')
-    budget = info.get('budget')
+    # NOTE: Budget is NOT passed to the model - wines are already pre-filtered by budget
     
     journey_text = "un percorso di vini diversi" if journey_pref == 'journey' else "una singola etichetta"
     wine_type_text = "si affida alla tua esperienza" if wine_type == 'any' else wine_type
     
-    if budget is None or budget == 'nolimit':
-        budget_text = 'senza limiti di budget'
-    elif isinstance(budget, (int, float)):
-        budget_text = f'massimo €{budget:.2f} per bottiglia'
-    else:
-        budget_labels = {
-            'base': 'base (fino a €20)', 'spinto': 'spinto (€20-40)',
-            'low': 'base (fino a €20)', 'medium': 'spinto (€20-40)',
-            'high': 'senza limiti', 'any': 'senza limiti'
-        }
-        budget_text = budget_labels.get(budget, str(budget))
-    
     prompt = f"""{intro}
 
-Scrivi UN SOLO messaggio naturale (senza titoli, senza elenchi, senza formati tipo “ARGOMENTO: SPIEGAZIONE”).
+Scrivi UN SOLO messaggio naturale (senza titoli, senza elenchi, senza formati tipo "ARGOMENTO: SPIEGAZIONE").
 
 Deve contenere:
 - un benvenuto breve
-- un recap fluido di: piatti ({', '.join(dish_list) if dish_list else 'nessuno'}), commensali ({guest_count}), modalità ({journey_text}), preferenza tipo vino ({wine_type_text}), budget ({budget_text})
-- 1–2 frasi di “linea guida” sullo stile di vino più adatto ai piatti (senza citare etichette specifiche)
-- chiusura con invito: “Quando vuoi, procediamo con i suggerimenti.”
+- un recap fluido di: piatti ({', '.join(dish_list) if dish_list else 'nessuno'}), commensali ({guest_count}), modalità ({journey_text}), preferenza tipo vino ({wine_type_text})
+- 1–2 frasi di "linea guida" sullo stile di vino più adatto ai piatti (senza citare etichette specifiche)
+- chiusura con invito: "Quando vuoi, procediamo con i suggerimenti."
 
 Regole:
 - NON proporre vini o raccomandazioni (niente nomi/etichette)
@@ -193,13 +181,8 @@ def get_b2c_system_prompt(
     else:
         preferences_context += "- Modalità: SINGOLA etichetta (con alternative)\n"
     
-    budget = info.get('budget')
-    if budget is None or budget == 'nolimit':
-        preferences_context += "- Budget: Nessuna restrizione\n"
-    elif isinstance(budget, (int, float)):
-        budget_max = float(budget)
-        max_price = budget_max * 1.15  # budget + 15%
-        preferences_context += f"- Budget: Massimo €{budget:.2f} per bottiglia (la carta è già filtrata per includere vini fino a €{max_price:.2f})\n"
+    # NOTE: Budget is NOT passed to the model.
+    # Wines are already pre-filtered by budget, so the model should not make assumptions about it.
     
     # Format instructions
     if journey_pref == 'journey':
@@ -280,25 +263,18 @@ Proponi ALMENO 2 alternative (ideale 2-4, ma puoi aggiungere altre se molto affi
 
 2. **DA 3 A 5 ALTERNATIVE**: Devi proporre DA 3 A 5 vini diversi dalla carta quando possibile. Se la carta ha molti vini affini al profilo richiesto, suggerisci 3-4 alternative per dare più scelta al cliente. Solo se ci sono pochi vini disponibili, puoi proporre 2 vini.
 
-3. **BUDGET E OTTIMIZZAZIONE RICAVO**: 
-   - L'obiettivo è OTTIMIZZARE IL RICAVO proponendo vini quanto più vicini al budget indicato
-   - Proponi sempre vini che si avvicinano al budget (non troppo al di sotto, idealmente vicino al limite)
-   - Mantieni SEMPRE l'affinità con le richieste del cliente (piatti, preferenze, tipo vino)
-   - Se il budget è €30, preferisci vini tra €25-30 piuttosto che €15-20, mantenendo comunque l'aderenza ai piatti
-   - **Bilanciamento**: Massimizza il valore proponendo vini di qualità che si avvicinano al limite superiore del budget, sempre mantenendo la pertinenza con le preferenze
-
-4. **NOMI ESATTI DEI VINI - CRITICO**: 
+3. **NOMI ESATTI DEI VINI - CRITICO**: 
    ⚠️ Quando proponi un vino, DEVI SEMPRE menzionare il NOME ESATTO così come appare nella "Carta dei Vini Disponibili".
    - Se nella carta c'è "Focara Pinot Noir D.O.C. 2014", DEVI dire esattamente "Focara Pinot Noir D.O.C. 2014"
    - NON dire "un Pinot Noir" o "Focara" o "un vino della cantina Focara"
    - Usa sempre il nome completo con annata, denominazione, etc.
    - Questo è ESSENZIALE: senza il nome esatto, il sistema non può mostrare le card corrette
 
-5. **MAI DESSERT WINE CON PIATTI SALATI**: Non proporre mai vini passiti, dolci, dessert wine con antipasti/primi/secondi.
+4. **MAI DESSERT WINE CON PIATTI SALATI**: Non proporre mai vini passiti, dolci, dessert wine con antipasti/primi/secondi.
 
-6. **FLUSSO NATURALE**: Analizza la conversazione fatta fino a ora e mantieni il flusso naturale. Non ripetere informazioni già date.
+5. **FLUSSO NATURALE**: Analizza la conversazione fatta fino a ora e mantieni il flusso naturale. Non ripetere informazioni già date.
 
-7. **PREZZI**: Sempre indicare il prezzo per ogni vino proposto.
+6. **PREZZI**: Sempre indicare il prezzo per ogni vino proposto.
 
 Rispondi sempre in italiano."""
 
@@ -397,12 +373,10 @@ IMPORTANTE: Questi vini devono essere proposti con best=true quando appropriati,
     
     dish_context = "\n".join(dish_context_parts) if dish_context_parts else "Nessun piatto specificato"
     
-    # Price constraint (max_price is already calculated - model should not see original budget)
+    # NOTE: Price constraint is NOT passed to the model.
+    # Wines are already pre-filtered by budget, so the model should not make assumptions about price limits.
+    # This prevents the model from penalizing wines close to the budget limit.
     price_constraint_text = ""
-    if max_price is not None:
-        price_constraint_text = f"Limite massimo prezzo: €{max_price:.2f} per bottiglia."
-    else:
-        price_constraint_text = "Nessuna restrizione di prezzo."
     
     # Determine output format
     if journey_pref == 'journey':
@@ -534,8 +508,6 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 **Tipo vino preferito:** {wine_type if wine_type != 'any' else 'Nessuna preferenza specifica - scegli tu il migliore'}
 
 **Modalità:** {"Percorso di vini" if journey_pref == 'journey' else "Singola etichetta con alternative"}
-
-**Limite prezzo:** {price_constraint_text}
 
 {featured_wines_context}
 

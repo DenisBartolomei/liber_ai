@@ -19,6 +19,37 @@ logger = logging.getLogger(__name__)
 chat_bp = Blueprint('chat', __name__)
 
 
+def enrich_wines_with_db_data(wines):
+    """
+    Enrich wine dictionaries with image_url and other display fields from the database.
+    The fine-tuned selector only returns id, name, price, rank, reason, best.
+    This function adds image_url, region, grape_variety, vintage for display in cards.
+    """
+    if not wines:
+        return wines
+    
+    wine_ids = [w.get('id') for w in wines if w.get('id')]
+    if not wine_ids:
+        return wines
+    
+    products = Product.query.filter(Product.id.in_(wine_ids)).all()
+    product_map = {p.id: p for p in products}
+    
+    enriched = []
+    for wine in wines:
+        wine_id = wine.get('id')
+        if wine_id and wine_id in product_map:
+            p = product_map[wine_id]
+            wine['image_url'] = p.image_url
+            wine['region'] = getattr(p, 'region', None)
+            wine['grape_variety'] = getattr(p, 'grape_variety', None)
+            wine['vintage'] = getattr(p, 'vintage', None)
+            wine['type'] = getattr(p, 'type', None)
+            wine['description'] = getattr(p, 'description', None)
+        enriched.append(wine)
+    return enriched
+
+
 @chat_bp.route('/start-token', methods=['GET'])
 def create_start_token():
     """
@@ -599,12 +630,16 @@ def proceed_recommendations():
 
         if journey_pref == 'journey' and has_journeys:
             all_wine_ids = []
-            for journey in wine_selection.get('journeys', []):
+            journeys = wine_selection.get('journeys', [])
+            # Enrich wines in each journey with image_url and other display fields
+            for journey in journeys:
+                if journey.get('wines'):
+                    journey['wines'] = enrich_wines_with_db_data(journey['wines'])
                 all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
 
             response_payload = {
                 'message': ai_message,
-                'journeys': wine_selection.get('journeys', []),
+                'journeys': journeys,
                 'wine_ids': list(set(all_wine_ids)),
                 'wines': [],
                 'suggestions': [],
@@ -619,6 +654,8 @@ def proceed_recommendations():
             }
         else:
             all_ranked_wines = wine_selection.get('wines', [])
+            # Enrich wines with image_url and other display fields from database
+            all_ranked_wines = enrich_wines_with_db_data(all_ranked_wines)
             wines_for_display = all_ranked_wines[:3]
             wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
 
@@ -794,6 +831,10 @@ def send_message():
     
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
+    
+    # Force refresh from database to get latest context (e.g., wines_proposed flag set by /proceed-recommendations)
+    # This prevents SQLAlchemy session caching from returning stale data
+    db.session.expire(session)
     
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
