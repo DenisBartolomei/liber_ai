@@ -133,11 +133,12 @@ class AIAgentService:
                 logger.info(f"Found wines_proposed in session.context (fallback): wines_proposed={wines_proposed}, filtered_wines={len(filtered_wines)}")
         
         logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, wines_proposed={wines_proposed}, filtered_wines_count={len(filtered_wines)}, message_count={message_count}")
-        logger.info(f"Using mode: {'opening' if use_opening_prompt else ('clarification' if wines_proposed and filtered_wines else 'recommendation')} with model: {self.model}")
+        logger.info(f"Using mode: {'opening' if use_opening_prompt else ('clarification' if wines_proposed else 'recommendation')} with model: {self.model}")
         
         # CLARIFICATION MODE: Wines have already been proposed, only answer questions
-        if wines_proposed and filtered_wines:
-            logger.info(f"Using clarification mode with {len(filtered_wines)} filtered wines")
+        # The wines_proposed flag is the definitive indicator - filtered_wines may be empty but clarification should still work
+        if wines_proposed:
+            logger.info(f"[CLARIFICATION MODE] wines_proposed=True, filtered_wines={len(filtered_wines)}")
 
             recommendation_state = active_context.get('recommendation_state', {}) if active_context else {}
             recommended_mode = recommendation_state.get('mode', 'single')

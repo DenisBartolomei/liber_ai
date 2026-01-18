@@ -689,9 +689,10 @@ def proceed_recommendations():
 
         context = session.context or {}
         context['wines_proposed'] = True
-        if filtered_wines_snapshot:
-            context['filtered_wines'] = filtered_wines_snapshot
+        # Always save filtered_wines (even if empty) - required for clarification mode detection
+        context['filtered_wines'] = filtered_wines_snapshot or []
         # Persist immutable recommendation state for later clarifications (no re-ranking)
+        # Note: wines in response_payload are already enriched with image_url from enrich_wines_with_db_data()
         context['recommendation_state'] = {
             'mode': response_payload.get('mode'),
             'wines': response_payload.get('wines', []),
@@ -700,6 +701,7 @@ def proceed_recommendations():
             # anchor message id to fetch full rankings via /messages/<id>/rankings
             'rankings_message_id': assistant_message.id
         }
+        logger.info(f"Proceed: saving context - wines_proposed=True, filtered_wines={len(context['filtered_wines'])}, recommendation_state wines={len(context['recommendation_state'].get('wines', []))}")
         context['proceed_clicked_at'] = datetime.utcnow().isoformat()
         latency_ms = int((time.time() - start_time) * 1000)
         context['proceed_latency_ms'] = latency_ms
@@ -832,9 +834,9 @@ def send_message():
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
     
-    # Force refresh from database to get latest context (e.g., wines_proposed flag set by /proceed-recommendations)
-    # This prevents SQLAlchemy session caching from returning stale data
-    db.session.expire(session)
+    # Force immediate refresh from database to get latest context (e.g., wines_proposed flag set by /proceed-recommendations)
+    # Using refresh() instead of expire() to force immediate reload, not lazy reload
+    db.session.refresh(session)
     
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
