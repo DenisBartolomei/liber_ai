@@ -74,7 +74,7 @@ gcloud run deploy liber-backend \
     --platform managed \
     --region ${REGION} \
     --allow-unauthenticated \
-    --memory 4Gi \
+    --memory 2Gi \
     --cpu 1 \
     --timeout 300 \
     --max-instances 10 \

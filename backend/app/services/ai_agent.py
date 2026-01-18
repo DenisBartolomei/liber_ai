@@ -13,6 +13,7 @@ from app.services.fine_tuned_selector import FineTunedWineSelector
 from app.services.communication_model import CommunicationModelService
 from app.prompts.b2b_system import get_b2b_system_prompt
 from app.prompts.b2c_system import get_b2c_system_prompt, get_b2c_opening_prompt, get_b2c_clarification_prompt, calculate_bottles_needed
+from app.models import Product
 
 logger = logging.getLogger(__name__)
 
@@ -609,18 +610,30 @@ class AIAgentService:
                 logger.warning(f"Communication model failed, using fallback: {e}")
                 ai_message = self._generate_fallback_message(wine_selection, journey_pref)
             
-            # Prepare response based on mode
+            # Enrich wines with database data (region, grape_variety, vintage, image_url, etc.)
+            # This ensures cards display complete information
+            enriched_journeys = []
+            if journey_pref == 'journey' and has_journeys:
+                for journey in wine_selection.get('journeys', []):
+                    journey_wines = journey.get('wines', [])
+                    enriched_journey_wines = self._enrich_wines_with_db_data(journey_wines)
+                    enriched_journey = journey.copy()
+                    enriched_journey['wines'] = enriched_journey_wines
+                    enriched_journeys.append(enriched_journey)
             
+            enriched_all_wines = self._enrich_wines_with_db_data(wine_selection.get('wines', []))
+            
+            # Prepare response based on mode
             if journey_pref == 'journey' and has_journeys:
                 # Journey mode
                 all_wine_ids = []
-                for journey in wine_selection['journeys']:
+                for journey in enriched_journeys:
                     all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
                 
-                logger.info(f"Returning {len(wine_selection['journeys'])} journeys with {len(all_wine_ids)} unique wines")
+                logger.info(f"Returning {len(enriched_journeys)} journeys with {len(all_wine_ids)} unique wines (enriched)")
                 return {
                     'message': ai_message,
-                    'journeys': wine_selection['journeys'],
+                    'journeys': enriched_journeys,
                     'wine_ids': list(set(all_wine_ids)),
                     'wines': [],  # Empty for journey mode
                     'suggestions': [],
@@ -635,12 +648,12 @@ class AIAgentService:
                 }
             else:
                 # Single mode
-                all_ranked_wines = wine_selection.get('wines', [])
+                all_ranked_wines = enriched_all_wines
                 # First 3 wines for initial display (max 3)
                 wines_for_display = all_ranked_wines[:3]
                 wine_ids = [w.get('id') for w in all_ranked_wines if w.get('id')]
                 
-                logger.info(f"Returning {len(wines_for_display)} wines for display, {len(all_ranked_wines)} total ranked wines")
+                logger.info(f"Returning {len(wines_for_display)} wines for display, {len(all_ranked_wines)} total ranked wines (enriched with region, grape_variety, vintage)")
                 
                 return {
                     'message': ai_message,
@@ -786,13 +799,22 @@ class AIAgentService:
                     bottles_count or calculate_bottles_needed(active_context.get('guest_count', 2))
                 )
                 if journeys:
-                    all_wine_ids = []
+                    # Enrich wines in each journey with database data
+                    enriched_journeys = []
                     for journey in journeys:
+                        journey_wines = journey.get('wines', [])
+                        enriched_journey_wines = self._enrich_wines_with_db_data(journey_wines)
+                        enriched_journey = journey.copy()
+                        enriched_journey['wines'] = enriched_journey_wines
+                        enriched_journeys.append(enriched_journey)
+                    
+                    all_wine_ids = []
+                    for journey in enriched_journeys:
                         all_wine_ids.extend([w.get('id') for w in journey.get('wines', []) if w.get('id')])
                     
                     return {
                         'message': ai_response,
-                        'journeys': journeys,
+                        'journeys': enriched_journeys,
                         'wine_ids': list(set(all_wine_ids)),
                         'wines': [],
                         'suggestions': [],
@@ -806,11 +828,13 @@ class AIAgentService:
                         }
                     }
         
-        wine_ids = [w.get('id') for w in wines_to_return if w.get('id')]
+        # Enrich wines with database data before returning
+        enriched_wines = self._enrich_wines_with_db_data(wines_to_return)
+        wine_ids = [w.get('id') for w in enriched_wines if w.get('id')]
         
         return {
             'message': ai_response,
-            'wines': wines_to_return,
+            'wines': enriched_wines,
             'wine_ids': wine_ids,
             'journeys': [],
             'suggestions': [],
@@ -819,8 +843,8 @@ class AIAgentService:
                 'model': self.model,
                 'tokens_used': response.usage.total_tokens if response.usage else 0,
                 'gathered_info': gathered_info,
-                'is_recommending': len(wines_to_return) > 0,
-                'filtered_wines': all_wines if len(wines_to_return) > 0 else []  # Include filtered wines for context saving
+                'is_recommending': len(enriched_wines) > 0,
+                'filtered_wines': all_wines if len(enriched_wines) > 0 else []  # Include filtered wines for context saving
             }
         }
     
@@ -1454,6 +1478,68 @@ class AIAgentService:
             'phase': phase,
             'missing': [k for k, v in gathered_info.items() if v is None]
         }
+    
+    def _enrich_wines_with_db_data(self, wines: List[Dict]) -> List[Dict]:
+        """
+        Enrich wine dictionaries with display fields from the database.
+        The fine-tuned selector only returns id, name, price, rank, reason, best.
+        This function adds image_url, region, grape_variety, vintage, and other useful fields
+        to ensure cards are always complete (photo + info).
+        
+        Args:
+            wines: List of wine dictionaries from fine-tuned selector
+            
+        Returns:
+            List of enriched wine dictionaries with all display fields
+        """
+        if not wines:
+            return wines
+        
+        wine_ids = [w.get('id') for w in wines if w.get('id')]
+        if not wine_ids:
+            return wines
+        
+        products = Product.query.filter(Product.id.in_(wine_ids)).all()
+        product_map = {p.id: p for p in products}
+        
+        enriched = []
+        for wine in wines:
+            wine_id = wine.get('id')
+            if wine_id and wine_id in product_map:
+                p = product_map[wine_id]
+                # Core display fields - preserve existing data if present, otherwise add from database
+                # Always update from database to ensure we have the latest data
+                wine['image_url'] = p.image_url or wine.get('image_url')
+                wine['region'] = getattr(p, 'region', None) or wine.get('region')
+                wine['grape_variety'] = getattr(p, 'grape_variety', None) or wine.get('grape_variety')
+                wine['vintage'] = getattr(p, 'vintage', None) or wine.get('vintage')
+                wine['type'] = getattr(p, 'type', None) or wine.get('type')
+                wine['description'] = getattr(p, 'description', None) or wine.get('description')
+                wine['country'] = getattr(p, 'country', None) or wine.get('country')
+                wine['appellation'] = getattr(p, 'appellation', None) or wine.get('appellation')
+                wine['producer'] = getattr(p, 'producer', None) or wine.get('producer')
+                wine['tasting_notes'] = getattr(p, 'tasting_notes', None) or wine.get('tasting_notes')
+                wine['aromas'] = getattr(p, 'aromas', None) or wine.get('aromas')
+                wine['color'] = getattr(p, 'color', None) or wine.get('color')
+                wine['body'] = getattr(p, 'body', None) if getattr(p, 'body', None) is not None else wine.get('body')
+                wine['tannin_level'] = getattr(p, 'tannin_level', None) if getattr(p, 'tannin_level', None) is not None else wine.get('tannin_level')
+                wine['acidity_level'] = getattr(p, 'acidity_level', None) if getattr(p, 'acidity_level', None) is not None else wine.get('acidity_level')
+                wine['alcohol_content'] = getattr(p, 'alcohol_content', None) if getattr(p, 'alcohol_content', None) is not None else wine.get('alcohol_content')
+                wine['sweetness'] = getattr(p, 'sweetness', None) or wine.get('sweetness')
+                wine['food_pairings'] = getattr(p, 'food_pairings', None) or wine.get('food_pairings')
+                
+                # Log completeness for debugging
+                logger.info(
+                    f"Enriching wine {wine_id} '{p.name}': "
+                    f"image_url={bool(wine.get('image_url'))}, "
+                    f"region={bool(wine.get('region'))}, "
+                    f"grape={bool(wine.get('grape_variety'))}, "
+                    f"vintage={bool(wine.get('vintage'))}, "
+                    f"type={bool(wine.get('type'))}"
+                )
+            enriched.append(wine)
+        
+        return enriched
     
     def _create_wine_journeys(self, wines: List[Dict], bottles_count: int) -> List[Dict]:
         """

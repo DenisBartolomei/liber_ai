@@ -617,7 +617,7 @@ def get_communication_prompt(
 
 ## IL TUO COMPITO
 
-Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini principali (i primi 3) con un breve motivo per ciascuno. Le descrizioni dettagliate sono nelle card.
+Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini principali (i primi 3) con un breve motivo per ciascuno.
 
 {selection_text}
 
@@ -641,7 +641,7 @@ Comunica le selezioni di vini in modo CONCISO. Presenta solo i nomi dei vini pri
 5. **SOLO I PRIMI 3 VINI**: Per singola etichetta, menziona solo i primi 3 vini (best=true e i successivi 2). Gli altri sono disponibili nelle card.
 
 **IMPORTANTE**: 
-- SII BREVE: 50-80 parole totali massimo per singola etichetta, 60-100 parole per percorsi
+- SII BREVE: 70-100 parole totali massimo per singola etichetta, 60-100 parole per percorsi
 - PER PERCORSI: Solo nomi dei vini principali (primi 2), senza motivi dettagliati. Le descrizioni complete sono nelle card.
 - NON essere descrittivo: solo nome + motivo breve (singola etichetta) o solo nomi (percorsi)
 - NON espandere le reason: usa direttamente i motivi forniti

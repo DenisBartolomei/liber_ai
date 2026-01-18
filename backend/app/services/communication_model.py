@@ -85,7 +85,7 @@ class CommunicationModelService:
         try:
             # Determine max tokens based on mode (journeys need slightly more for 3 paths)
             is_journey_mode = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
-            max_tokens = 800 if is_journey_mode else 600
+            max_tokens = 2000 if is_journey_mode else 600
             
             # Detect if model is a reasoning model (gpt-5.x, o1, o3, etc.)
             is_reasoning_model = any(x in self.model.lower() for x in ['gpt-5', 'o1', 'o3'])
