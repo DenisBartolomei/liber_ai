@@ -147,11 +147,15 @@ class AIAgentService:
             recommendation_state.get('mode') if isinstance(recommendation_state, dict) else None,
             message_count
         )
+        # #region agent log
+        logger.warning(f"[DEBUG-A] AGENT: wines_proposed={wines_proposed}, use_opening={use_opening_prompt}, will_clarify={wines_proposed and not use_opening_prompt}, message_count={message_count}")
+        # #endregion
         logger.info(f"Using mode: {'opening' if use_opening_prompt else ('clarification' if wines_proposed else 'recommendation')} with model: {self.model}")
         
         # CLARIFICATION MODE: Wines have already been proposed, only answer questions
         # The wines_proposed flag is the definitive indicator - filtered_wines may be empty but clarification should still work
         if wines_proposed:
+            logger.warning(f"[DEBUG-A] CLARIFICATION MODE ENTERED: wines_proposed=True, rec_wines={len(recommendation_state.get('wines', []))}")
             logger.info(f"[CLARIFICATION MODE] wines_proposed=True, filtered_wines={len(filtered_wines)}")
 
             recommendation_state = active_context.get('recommendation_state', {}) if active_context else {}

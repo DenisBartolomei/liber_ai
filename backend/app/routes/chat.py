@@ -725,6 +725,9 @@ def proceed_recommendations():
             # anchor message id to fetch full rankings via /messages/<id>/rankings
             'rankings_message_id': assistant_message.id
         }
+        # #region agent log
+        logger.warning(f"[DEBUG-B] PROCEED: Setting wines_proposed=True, session_id={session.id}, filtered_wines={len(filtered_wines_snapshot or [])}, rec_wines={len(response_payload.get('wines', []))}")
+        # #endregion
         logger.info(f"Proceed: saving context - wines_proposed=True, filtered_wines={len(context['filtered_wines'])}, recommendation_state wines={len(context['recommendation_state'].get('wines', []))}")
         context['proceed_clicked_at'] = datetime.utcnow().isoformat()
         latency_ms = int((time.time() - start_time) * 1000)
@@ -732,6 +735,9 @@ def proceed_recommendations():
         session.context = context
         session.update_activity()
         db.session.commit()
+        # #region agent log
+        logger.warning(f"[DEBUG-B] PROCEED: Committed! session_id={session.id}, context_wines_proposed={session.context.get('wines_proposed')}")
+        # #endregion
 
         response_payload['message_id'] = assistant_message.id
         logger.info(f"Proceed: success, message_id={assistant_message.id}, wines={len(response_payload.get('wines', []))}, latency={latency_ms}ms")
@@ -861,6 +867,10 @@ def send_message():
     # Force immediate refresh from database to get latest context (e.g., wines_proposed flag set by /proceed-recommendations)
     # Using refresh() instead of expire() to force immediate reload, not lazy reload
     db.session.refresh(session)
+    
+    # #region agent log
+    logger.warning(f"[DEBUG-A] MESSAGES: After refresh, session_id={session.id}, session_token={session_token[:8]}..., context_keys={list((session.context or {}).keys())}, wines_proposed_raw={(session.context or {}).get('wines_proposed', 'NOT_FOUND')}")
+    # #endregion
     
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400

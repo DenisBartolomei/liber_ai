@@ -87,6 +87,10 @@ class CommunicationModelService:
             is_journey_mode = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
             max_tokens = 250 if is_journey_mode else 200  # Slightly more for journeys with up to 3 paths
             
+            # #region agent log
+            logger.warning(f"[DEBUG-D] COMM: Calling model={self.model}, wines_count={len(wine_selection.get('wines', []))}, journeys_count={len(wine_selection.get('journeys', []))}, max_tokens={max_tokens}, messages_count={len(messages)}")
+            # #endregion
+            
             # Call communication model - concise responses only
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -96,6 +100,10 @@ class CommunicationModelService:
             )
             
             message = response.choices[0].message.content
+            
+            # #region agent log
+            logger.warning(f"[DEBUG-D] COMM: Response message_length={len(message) if message else 0}, message_preview={repr(message[:100]) if message else 'None'}, finish_reason={response.choices[0].finish_reason if response.choices else 'N/A'}")
+            # #endregion
             
             # Ensure message is not empty or None
             if not message or not message.strip():
