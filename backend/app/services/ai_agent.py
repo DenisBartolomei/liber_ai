@@ -165,6 +165,13 @@ class AIAgentService:
             recommended_wine_ids = recommendation_state.get('wine_ids', []) or []
             rankings_message_id = recommendation_state.get('rankings_message_id')
             
+            # Fallback: If recommended_wines is empty, try to get wines from filtered_wines in context
+            # This ensures the clarification prompt always has wine context to work with
+            if not recommended_wines and filtered_wines:
+                logger.info(f"[CLARIFICATION MODE] Using filtered_wines as fallback: {len(filtered_wines)} wines")
+                # Use first 3 filtered wines as recommended wines for context
+                recommended_wines = filtered_wines[:3]
+            
             # Use clarification prompt (no new wine proposals, only questions/answers)
             system_prompt = get_b2c_clarification_prompt(
                 venue_name=venue.name,

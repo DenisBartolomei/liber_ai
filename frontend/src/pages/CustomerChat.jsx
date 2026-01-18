@@ -93,7 +93,7 @@ function CustomerChat() {
   
   // New preference states
   const [selectedWineType, setSelectedWineType] = useState(null)
-  const [selectedJourney, setSelectedJourney] = useState(null)
+  const [selectedJourney, setSelectedJourney] = useState('single') // Default to 'single' - journey selection hidden
   const [selectedBudget, setSelectedBudget] = useState(null) // null = no restriction, number = max price per bottle
   const [budgetInput, setBudgetInput] = useState('')
   const [bottlesCount, setBottlesCount] = useState(2) // Number of bottles for journey
@@ -302,8 +302,8 @@ function CustomerChat() {
     return acc
   }, {})
 
-  // Flow navigation - 6 steps: intro -> dishes -> guests -> wineType -> journey -> budget -> chat
-  const flowSteps = ['intro', 'dishes', 'guests', 'wineType', 'journey', 'budget', 'chat']
+  // Flow navigation - 5 steps: intro -> dishes -> guests -> wineType -> budget -> chat (journey step removed, defaults to 'single')
+  const flowSteps = ['intro', 'dishes', 'guests', 'wineType', 'budget', 'chat']
   
   const canProceed = () => {
     switch (flowStep) {
@@ -311,7 +311,6 @@ function CustomerChat() {
       case 'dishes': return selectedDishes.length > 0
       case 'guests': return guestCount >= 1
       case 'wineType': return selectedWineType !== null
-      case 'journey': return selectedJourney !== null
       case 'budget': return selectedBudget !== null || budgetInput.trim() !== ''
       default: return false
     }
@@ -339,7 +338,7 @@ function CustomerChat() {
   
   // Get current step number for progress indicator (excluding intro and chat)
   const getStepProgress = () => {
-    const progressSteps = ['dishes', 'guests', 'wineType', 'journey', 'budget']
+    const progressSteps = ['dishes', 'guests', 'wineType', 'budget']
     return progressSteps.indexOf(flowStep) + 1
   }
 
@@ -780,11 +779,11 @@ function CustomerChat() {
           </div>
         </header>
 
-        {/* Progress indicator - 5 main steps (excluding intro) */}
+        {/* Progress indicator - 4 main steps (excluding intro and journey) */}
         {flowStep !== 'intro' && (
           <div className="max-w-2xl mx-auto px-4 pt-6">
             <div className="flex gap-2 mb-8">
-              {['dishes', 'guests', 'wineType', 'journey', 'budget'].map((step, idx) => (
+              {['dishes', 'guests', 'wineType', 'budget'].map((step, idx) => (
                 <div 
                   key={step}
                   className={`h-1.5 flex-1 rounded-full transition-colors ${
@@ -1062,96 +1061,10 @@ function CustomerChat() {
               </motion.div>
             )}
 
-            {/* Step 4: Single or Journey */}
-            {flowStep === 'journey' && (
-              <motion.div
-                key="journey"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <div className="text-center mb-8">
-                  <div className="w-20 h-20 bg-burgundy-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Sparkles className="w-10 h-10 text-gold-500" />
-                  </div>
-                  <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                    Come volete degustare?
-                  </h2>
-                  <p className="text-cream-100/70">
-                    Un solo vino o un percorso di degustazione?
-                  </p>
-                </div>
+            {/* Step 4: Journey selection removed - defaulting to 'single' label only */}
+            {/* Journey step UI commented out - will be developed in the future for multi-label support */}
 
-                <div className="grid gap-4 mb-6">
-                  {journeyOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setSelectedJourney(option.id)}
-                      className={`w-full flex items-center gap-4 p-5 rounded-xl transition-all ${
-                        selectedJourney === option.id
-                          ? 'bg-gold-500 text-burgundy-900'
-                          : 'bg-burgundy-800/50 text-cream-50 hover:bg-burgundy-700/50'
-                      }`}
-                    >
-                      <span className="text-3xl">{option.icon}</span>
-                      <div className="text-left flex-1">
-                        <div className="font-semibold text-lg">{option.label}</div>
-                        <div className={`text-sm ${selectedJourney === option.id ? 'text-burgundy-700' : 'text-cream-100/60'}`}>
-                          {option.description}
-                        </div>
-                      </div>
-                      {selectedJourney === option.id && (
-                        <Check className="w-6 h-6" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Bottles count selector - only show when journey is selected */}
-                {selectedJourney === 'journey' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="bg-burgundy-800/30 rounded-xl p-6 border border-gold-500/20 mt-6"
-                  >
-                    <div className="text-center mb-4">
-                      <h3 className="font-semibold text-cream-50 mb-2">
-                        Quante bottiglie per il percorso?
-                      </h3>
-                      <p className="text-sm text-cream-100/70">
-                        Abbiamo suggerito <span className="font-bold text-gold-400">{calculateBottlesNeeded(guestCount)} bottiglie</span> per {guestCount} {guestCount === 1 ? 'persona' : 'persone'} (circa 2 portate a testa). Puoi modificare questo numero.
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center justify-center gap-4">
-                      <button
-                        onClick={() => setBottlesCount(Math.max(1, bottlesCount - 1))}
-                        className="w-12 h-12 rounded-full bg-burgundy-700 text-cream-50 text-2xl font-bold hover:bg-burgundy-600 transition-colors"
-                      >
-                        −
-                      </button>
-                      <div className="w-20 h-20 rounded-2xl bg-gold-500 flex items-center justify-center">
-                        <span className="text-3xl font-display font-bold text-burgundy-900">
-                          {bottlesCount}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setBottlesCount(Math.min(10, bottlesCount + 1))}
-                        className="w-12 h-12 rounded-full bg-burgundy-700 text-cream-50 text-2xl font-bold hover:bg-burgundy-600 transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                    
-                    <p className="text-center mt-4 text-cream-100/50 text-xs">
-                      {bottlesCount === 1 ? 'bottiglia' : 'bottiglie'}
-                    </p>
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-
-            {/* Step 5: Budget */}
+            {/* Step 4: Budget (renumbered from Step 5) */}
             {flowStep === 'budget' && (
               <motion.div
                 key="budget"
