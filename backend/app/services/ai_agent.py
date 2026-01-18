@@ -132,7 +132,21 @@ class AIAgentService:
                 filtered_wines = session_ctx.get('filtered_wines', [])
                 logger.info(f"Found wines_proposed in session.context (fallback): wines_proposed={wines_proposed}, filtered_wines={len(filtered_wines)}")
         
-        logger.info(f"B2C Context: dishes={len(active_context.get('dishes', []))}, guests={active_context.get('guest_count')}, prefs={gathered_info}, use_opening_prompt={use_opening_prompt}, wines_proposed={wines_proposed}, filtered_wines_count={len(filtered_wines)}, message_count={message_count}")
+        # Debug logging to ensure clarification mode triggers deterministically
+        recommendation_state = active_context.get('recommendation_state', {}) if active_context else {}
+        logger.info(
+            "B2C Context: dishes=%s, guests=%s, prefs=%s, use_opening_prompt=%s, "
+            "wines_proposed=%s, filtered_wines_count=%s, rec_state_wines=%s, rec_state_mode=%s, message_count=%s",
+            len(active_context.get('dishes', [])),
+            active_context.get('guest_count'),
+            gathered_info,
+            use_opening_prompt,
+            wines_proposed,
+            len(filtered_wines),
+            len(recommendation_state.get('wines', [])) if isinstance(recommendation_state, dict) else 0,
+            recommendation_state.get('mode') if isinstance(recommendation_state, dict) else None,
+            message_count
+        )
         logger.info(f"Using mode: {'opening' if use_opening_prompt else ('clarification' if wines_proposed else 'recommendation')} with model: {self.model}")
         
         # CLARIFICATION MODE: Wines have already been proposed, only answer questions

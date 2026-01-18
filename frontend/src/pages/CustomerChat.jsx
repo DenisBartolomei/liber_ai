@@ -208,9 +208,49 @@ function CustomerChat() {
     proceedRecommendations
   } = useChat(venueSlug, 'b2c', accessToken)
 
+  const [recommendedState, setRecommendedState] = useState({
+    messageId: null,
+    mode: null,
+    wines: [],
+    journeys: [],
+    wineIds: []
+  })
+
   useEffect(() => {
     loadVenueAndMenu()
   }, [venueSlug])
+
+  useEffect(() => {
+    // Reset recommended state when starting a new session or leaving chat
+    if (!sessionToken || flowStep !== 'chat') {
+      setRecommendedState({
+        messageId: null,
+        mode: null,
+        wines: [],
+        journeys: [],
+        wineIds: []
+      })
+    }
+  }, [sessionToken, flowStep])
+
+  useEffect(() => {
+    if (recommendedState.messageId) return
+    const firstRecommendation = messages.find(
+      msg =>
+        msg.role === 'assistant' &&
+        msg.metadata?.is_recommending &&
+        ((msg.wines && msg.wines.length > 0) || (msg.journeys && msg.journeys.length > 0))
+    )
+    if (firstRecommendation) {
+      setRecommendedState({
+        messageId: firstRecommendation.id || firstRecommendation.message_id,
+        mode: firstRecommendation.mode || (firstRecommendation.journeys?.length ? 'journey' : 'single'),
+        wines: firstRecommendation.wines || [],
+        journeys: firstRecommendation.journeys || [],
+        wineIds: firstRecommendation.wine_ids || []
+      })
+    }
+  }, [messages, recommendedState.messageId])
 
   const loadVenueAndMenu = async () => {
     try {
@@ -1274,14 +1314,28 @@ function CustomerChat() {
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-4 py-4 md:py-6">
         <div className="max-w-2xl mx-auto space-y-4 w-full">
           <AnimatePresence mode="popLayout">
-            {visibleMessages.map((message, msgIdx) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
-              >
+            {visibleMessages.map((message, msgIdx) => {
+              const hasRecommendation = Boolean(recommendedState.messageId)
+              const isAssistant = message.role === 'assistant'
+              const useRecommendedCards = isAssistant && hasRecommendation
+              const displayMode = useRecommendedCards ? recommendedState.mode : message.mode
+              const displayWines = useRecommendedCards ? recommendedState.wines : message.wines
+              const displayJourneys = useRecommendedCards ? recommendedState.journeys : message.journeys
+              const actionMessageId = recommendedState.messageId || message.id
+              const rankingsMessageId =
+                recommendedState.messageId ||
+                message.metadata?.rankings_message_id ||
+                message.message_id ||
+                message.id
+
+              return (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
+                >
                 {message.role === 'assistant' ? (
                   <div className="flex gap-2 md:gap-3 max-w-[90%] md:max-w-[85%] w-full">
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-gold-400 to-gold-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
@@ -1289,7 +1343,7 @@ function CustomerChat() {
                     </div>
                     <div className="space-y-2 md:space-y-3 flex-1 min-w-0">
                       {/* Render message content - always show if exists or if we have wines/journeys */}
-                      {(message.content && message.content.trim()) || (message.wines && message.wines.length > 0) || (message.journeys && message.journeys.length > 0) ? (
+                      {(message.content && message.content.trim()) || (displayWines && displayWines.length > 0) || (displayJourneys && displayJourneys.length > 0) ? (
                         message.content && message.content.trim() ? (
                       <div className="bg-white rounded-xl md:rounded-2xl rounded-tl-sm px-3 md:px-4 py-2 md:py-3 shadow-sm border border-burgundy-100 overflow-x-hidden">
                         {/* Render markdown formatted message */}
@@ -1329,7 +1383,7 @@ function CustomerChat() {
                       ) : null}
                       
                       {/* Wine suggestions - SINGLE mode (wines array) */}
-                      {message.mode !== 'journey' && message.wines && message.wines.length > 0 && (
+                      {displayMode !== 'journey' && displayWines && displayWines.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -1342,18 +1396,18 @@ function CustomerChat() {
                           </p>
                           
                           {/* All recommended wines - show all as selectable cards (max 3) */}
-                          {message.wines.length > 0 && (
+                          {displayWines.length > 0 && (
                             <div className="space-y-2 w-full overflow-x-hidden">
-                              {(message.wines || []).slice(0, 3).map((wine, idx) => (
+                              {(displayWines || []).slice(0, 3).map((wine, idx) => (
                                 <div key={wine.id || idx} className="w-full">
                                   <WineCard 
                                     wine={wine} 
                                     isMainRecommendation={wine.best === true || (wine.best === undefined && idx === 0)}
-                                    selected={selectedWineByMessage[message.id] === wine.id || 
-                                             (selectedWineByMessage[message.id] === undefined && (wine.best === true || (wine.best === undefined && idx === 0)) && wine.id)}
+                                    selected={selectedWineByMessage[actionMessageId] === wine.id || 
+                                             (selectedWineByMessage[actionMessageId] === undefined && (wine.best === true || (wine.best === undefined && idx === 0)) && wine.id)}
                                     onClick={() => setSelectedWineByMessage(prev => ({
                                       ...prev,
-                                      [message.id]: wine.id
+                                      [actionMessageId]: wine.id
                                     }))}
                                   />
                                 </div>
@@ -1362,7 +1416,7 @@ function CustomerChat() {
                           )}
                           
                           {/* Action buttons - only show if not already handled */}
-                          {!messagesWithActionsHandled.has(message.id) && (
+                          {!messagesWithActionsHandled.has(actionMessageId) && (
                             <motion.div
                               initial={{ opacity: 0, y: 5 }}
                               animate={{ opacity: 1, y: 0 }}
@@ -1371,12 +1425,12 @@ function CustomerChat() {
                             >
                               <button
                                 onClick={() => {
-                                  const selectedWineId = selectedWineByMessage[message.id] || message.wines[0]?.id
+                                  const selectedWineId = selectedWineByMessage[actionMessageId] || displayWines[0]?.id
                                   if (selectedWineId) {
-                                    handleConfirmSingleWine(message.id, selectedWineId, message.wines)
+                                    handleConfirmSingleWine(actionMessageId, selectedWineId, displayWines)
                                   }
                                 }}
-                                disabled={isLoading || (!selectedWineByMessage[message.id] && !message.wines[0]?.id)}
+                                disabled={isLoading || (!selectedWineByMessage[actionMessageId] && !displayWines[0]?.id)}
                                 className="flex-1 flex items-center justify-center gap-2 px-3 md:px-4 py-2.5 md:py-3 bg-green-600 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
@@ -1384,31 +1438,30 @@ function CustomerChat() {
                               </button>
                               <button
                                 onClick={async () => {
-                                  setModalMessageId(message.id)
+                                  setModalMessageId(actionMessageId)
                                   setLoadingRankings(true)
                                   setShowAllWinesModal(true)
                                   
                                   // Fetch rankings from API using message_id from server
                                   try {
-                                    const messageId = message.metadata?.rankings_message_id || message.message_id || message.id
-                                    if (messageId) {
-                                      const rankings = await fetchWineRankings(messageId)
+                                    if (rankingsMessageId) {
+                                      const rankings = await fetchWineRankings(rankingsMessageId)
                                       if (rankings && rankings.length > 0) {
                                         setModalWines(rankings)
                                       } else {
                                         // Fallback to all_rankings from message
-                                        const messageRankings = message.all_rankings || message.wines || []
+                                        const messageRankings = message.all_rankings || displayWines || []
                                         setModalWines(messageRankings)
                                       }
                                     } else {
                                       // No message_id available, use fallback
-                                      const messageRankings = message.all_rankings || message.wines || []
+                                      const messageRankings = message.all_rankings || displayWines || []
                                       setModalWines(messageRankings)
                                     }
                                   } catch (err) {
                                     console.error('Error fetching rankings:', err)
                                     // Fallback to all_rankings from message
-                                    const messageRankings = message.all_rankings || message.wines || []
+                                    const messageRankings = message.all_rankings || displayWines || []
                                     setModalWines(messageRankings)
                                   } finally {
                                     setLoadingRankings(false)
@@ -1426,7 +1479,7 @@ function CustomerChat() {
                       )}
                       
                       {/* Journey suggestions - JOURNEY mode */}
-                      {message.mode === 'journey' && message.journeys && message.journeys.length > 0 && (
+                      {displayMode === 'journey' && displayJourneys && displayJourneys.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -1438,11 +1491,11 @@ function CustomerChat() {
                             I miei percorsi per voi
                           </p>
                           
-                          {message.journeys.map((journey, journeyIdx) => (
+                          {displayJourneys.map((journey, journeyIdx) => (
                             <div 
                               key={journey.id || journeyIdx}
                               className={`p-4 rounded-xl border-2 transition-all ${
-                                selectedJourneyByMessage[message.id] === journey.id
+                                selectedJourneyByMessage[actionMessageId] === journey.id
                                   ? 'border-gold-500 bg-gold-50/30 shadow-md'
                                   : 'border-burgundy-100 bg-white'
                               }`}
@@ -1458,7 +1511,7 @@ function CustomerChat() {
                                     <button
                                       onClick={() => setSelectedJourneyDetails(prev => ({
                                         ...prev,
-                                        [message.id]: journey.id
+                                        [actionMessageId]: journey.id
                                       }))}
                                       className="px-3 py-2 rounded-lg font-medium text-sm transition-colors bg-burgundy-100 text-burgundy-700 hover:bg-burgundy-200"
                                     >
@@ -1468,15 +1521,15 @@ function CustomerChat() {
                                   <button
                                     onClick={() => setSelectedJourneyByMessage(prev => ({
                                       ...prev,
-                                      [message.id]: journey.id
+                                      [actionMessageId]: journey.id
                                     }))}
                                     className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                                      selectedJourneyByMessage[message.id] === journey.id
+                                      selectedJourneyByMessage[actionMessageId] === journey.id
                                         ? 'bg-gold-500 text-burgundy-900'
                                         : 'bg-burgundy-700 text-cream-50 hover:bg-burgundy-600'
                                     }`}
                                   >
-                                    {selectedJourneyByMessage[message.id] === journey.id ? 'Selezionato' : 'Seleziona questo percorso'}
+                                    {selectedJourneyByMessage[actionMessageId] === journey.id ? 'Selezionato' : 'Seleziona questo percorso'}
                                   </button>
                                 </div>
                               </div>
@@ -1491,17 +1544,17 @@ function CustomerChat() {
                               {/* Journey Details Modal */}
                               <JourneyDetailsModal
                                 journey={journey}
-                                isOpen={selectedJourneyDetails[message.id] === journey.id}
+                                isOpen={selectedJourneyDetails[actionMessageId] === journey.id}
                                 onClose={() => setSelectedJourneyDetails(prev => ({
                                   ...prev,
-                                  [message.id]: null
+                                  [actionMessageId]: null
                                 }))}
                               />
                             </div>
                           ))}
                           
                           {/* Action buttons - only show if not already handled */}
-                          {!messagesWithActionsHandled.has(message.id) && (
+                          {!messagesWithActionsHandled.has(actionMessageId) && (
                             <motion.div
                               initial={{ opacity: 0, y: 5 }}
                               animate={{ opacity: 1, y: 0 }}
@@ -1510,12 +1563,12 @@ function CustomerChat() {
                             >
                               <button
                                 onClick={() => {
-                                  const selectedJourneyId = selectedJourneyByMessage[message.id]
+                                  const selectedJourneyId = selectedJourneyByMessage[actionMessageId]
                                   if (selectedJourneyId) {
-                                    handleConfirmJourney(message.id, selectedJourneyId, message.journeys)
+                                    handleConfirmJourney(actionMessageId, selectedJourneyId, displayJourneys)
                                   }
                                 }}
-                                disabled={isLoading || !selectedJourneyByMessage[message.id]}
+                                disabled={isLoading || !selectedJourneyByMessage[actionMessageId]}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <CheckCircle2 className="w-5 h-5" />
@@ -1533,7 +1586,8 @@ function CustomerChat() {
                   </div>
                 )}
               </motion.div>
-            ))}
+            )
+          })}
           </AnimatePresence>
 
           {/* Loading indicator */}

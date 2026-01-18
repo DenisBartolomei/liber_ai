@@ -21,9 +21,10 @@ chat_bp = Blueprint('chat', __name__)
 
 def enrich_wines_with_db_data(wines):
     """
-    Enrich wine dictionaries with image_url and other display fields from the database.
+    Enrich wine dictionaries with display fields from the database.
     The fine-tuned selector only returns id, name, price, rank, reason, best.
-    This function adds image_url, region, grape_variety, vintage for display in cards.
+    This function adds image_url, region, grape_variety, vintage, and other useful fields
+    to ensure cards are always complete (photo + info).
     """
     if not wines:
         return wines
@@ -40,18 +41,34 @@ def enrich_wines_with_db_data(wines):
         wine_id = wine.get('id')
         if wine_id and wine_id in product_map:
             p = product_map[wine_id]
+            # Core display fields
             wine['image_url'] = p.image_url
             wine['region'] = getattr(p, 'region', None)
             wine['grape_variety'] = getattr(p, 'grape_variety', None)
             wine['vintage'] = getattr(p, 'vintage', None)
             wine['type'] = getattr(p, 'type', None)
             wine['description'] = getattr(p, 'description', None)
+            wine['country'] = getattr(p, 'country', None)
+            wine['appellation'] = getattr(p, 'appellation', None)
+            wine['producer'] = getattr(p, 'producer', None)
+            wine['tasting_notes'] = getattr(p, 'tasting_notes', None)
+            wine['aromas'] = getattr(p, 'aromas', None)
+            wine['color'] = getattr(p, 'color', None)
+            wine['body'] = getattr(p, 'body', None)
+            wine['tannin_level'] = getattr(p, 'tannin_level', None)
+            wine['acidity_level'] = getattr(p, 'acidity_level', None)
+            wine['alcohol_content'] = getattr(p, 'alcohol_content', None)
+            wine['sweetness'] = getattr(p, 'sweetness', None)
+            wine['food_pairings'] = getattr(p, 'food_pairings', None)
+
+            # Log completeness for debugging
             logger.info(
                 f"Enriching wine {wine_id} '{p.name}': "
                 f"image_url={bool(p.image_url)}, "
                 f"region={bool(getattr(p, 'region', None))}, "
                 f"grape={bool(getattr(p, 'grape_variety', None))}, "
-                f"vintage={bool(getattr(p, 'vintage', None))}"
+                f"vintage={bool(getattr(p, 'vintage', None))}, "
+                f"type={bool(getattr(p, 'type', None))}"
             )
         enriched.append(wine)
     return enriched
