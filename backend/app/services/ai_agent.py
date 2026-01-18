@@ -152,7 +152,7 @@ class AIAgentService:
                 venue_name=venue.name,
                 sommelier_style=venue.sommelier_style or 'professional',
                 context=active_context,
-                filtered_wines=filtered_wines
+                recommended_wines=recommended_wines
             )
             
             messages = [{"role": "system", "content": system_prompt}]

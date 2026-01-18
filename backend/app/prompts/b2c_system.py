@@ -656,7 +656,7 @@ def get_b2c_clarification_prompt(
     venue_name: str,
     sommelier_style: str = 'professional',
     context: Optional[Dict] = None,
-    filtered_wines: Optional[List[Dict]] = None
+    recommended_wines: Optional[List[Dict]] = None
 ) -> str:
     """
     Generate prompt for clarification mode (after wines have been proposed).
@@ -666,7 +666,7 @@ def get_b2c_clarification_prompt(
         venue_name: Name of the venue
         sommelier_style: Style of sommelier (professional, friendly, expert, playful)
         context: Context with dishes, guest_count
-        filtered_wines: List of all filtered wines (those available when ranking was done)
+        recommended_wines: List of wines proposed in cards (2-3 wines shown to the user)
         
     Returns:
         System prompt for clarification mode
@@ -693,12 +693,12 @@ def get_b2c_clarification_prompt(
     
     # Build wines context
     wines_context = ""
-    if filtered_wines:
-        wines_context = "## Carta dei Vini Disponibili\n\n"
-        wines_context += "⚠️ IMPORTANTE: I vini proposti nelle card sono l'unica selezione disponibile per questa serata.\n\n"
-        wines_context += "Ecco tutti i vini dalla carta selezionata:\n\n"
+    if recommended_wines:
+        wines_context = "## Vini proposti nelle card\n\n"
+        wines_context += "⚠️ IMPORTANTE: Puoi rispondere SOLO sui vini già proposti nelle card.\n\n"
+        wines_context += "Ecco i vini già proposti:\n\n"
         
-        for wine in filtered_wines:
+        for wine in recommended_wines:
             wine_id = wine.get('id', 'N/D')
             name = wine.get('name', 'N/D')
             wine_type = wine.get('type', 'N/D')
@@ -716,7 +716,7 @@ def get_b2c_clarification_prompt(
             
             wines_context += wine_line + "\n\n"
     else:
-        wines_context = "⚠️ ATTENZIONE: La carta dei vini non è disponibile in questo momento."
+        wines_context = "⚠️ ATTENZIONE: I vini proposti non sono disponibili in questo momento."
     
     prompt = f"""{intro}
 
@@ -755,6 +755,18 @@ Il tuo compito è rispondere a domande e chiarimenti sui vini, senza fare nuove 
 - Proporre nuovi vini o suggerire alternative oltre a quelle già proposte
 - Dire "potrei consigliarti..." o "un'altra opzione potrebbe essere..."
 - Frasi che implicano nuove proposte
+
+## FORMATO RISPOSTA OBBLIGATORIO
+
+⚠️ VIETATO USARE:
+- "Il mio consiglio", "Un'alternativa interessante"
+- Formati tipo "Nome Vino - €Prezzo"
+- Elenchi di raccomandazioni o nuove proposte
+
+✓ USA INVECE:
+- Risposte DIRETTE alla domanda del cliente
+- Linguaggio naturale conversazionale
+- Se chiedono caratteristiche di un vino, descrivile chiaramente senza formato di suggerimento
 
 **USA:**
 - Linguaggio naturale e conversazionale

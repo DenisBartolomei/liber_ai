@@ -46,6 +46,13 @@ def enrich_wines_with_db_data(wines):
             wine['vintage'] = getattr(p, 'vintage', None)
             wine['type'] = getattr(p, 'type', None)
             wine['description'] = getattr(p, 'description', None)
+            logger.info(
+                f"Enriching wine {wine_id} '{p.name}': "
+                f"image_url={bool(p.image_url)}, "
+                f"region={bool(getattr(p, 'region', None))}, "
+                f"grape={bool(getattr(p, 'grape_variety', None))}, "
+                f"vintage={bool(getattr(p, 'vintage', None))}"
+            )
         enriched.append(wine)
     return enriched
 
