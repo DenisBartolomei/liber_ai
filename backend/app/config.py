@@ -120,7 +120,9 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.1')  # Unified model for all conversational tasks
     OPENAI_FINETUNED_MODEL = os.getenv('OPENAI_FINETUNED_MODEL', 'gpt-5.1')  # Unified model for ranking/selection
-    OPENAI_COMMUNICATION_MODEL = os.getenv('OPENAI_COMMUNICATION_MODEL', 'gpt-5.1')  # Model for natural language communication
+    # Communication model should be a NON-reasoning model (fast, simple formatting)
+    # Reasoning models (gpt-5.x) use too many tokens for internal "thinking"
+    OPENAI_COMMUNICATION_MODEL = os.getenv('OPENAI_COMMUNICATION_MODEL', 'gpt-4o-mini')  # Fast model for formatting
     OPENAI_REASONING_EFFORT = os.getenv('OPENAI_REASONING_EFFORT', 'low')
     OPENAI_EMBEDDING_MODEL = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
     

@@ -84,21 +84,40 @@ class CommunicationModelService:
         
         try:
             # Determine max tokens based on mode (journeys need slightly more for 3 paths)
-            # NOTE: gpt-5-mini uses tokens for internal reasoning BEFORE output, so we need more tokens
             is_journey_mode = wine_selection.get('journeys') and len(wine_selection.get('journeys', [])) > 0
-            max_tokens = 800 if is_journey_mode else 600  # More tokens for reasoning models
+            max_tokens = 800 if is_journey_mode else 600
+            
+            # Detect if model is a reasoning model (gpt-5.x, o1, o3, etc.)
+            is_reasoning_model = any(x in self.model.lower() for x in ['gpt-5', 'o1', 'o3'])
             
             # #region agent log
-            logger.warning(f"[DEBUG-D] COMM: Calling model={self.model}, wines_count={len(wine_selection.get('wines', []))}, journeys_count={len(wine_selection.get('journeys', []))}, max_tokens={max_tokens}, messages_count={len(messages)}")
+            logger.warning(f"[DEBUG-D] COMM: Calling model={self.model}, is_reasoning={is_reasoning_model}, wines_count={len(wine_selection.get('wines', []))}, journeys_count={len(wine_selection.get('journeys', []))}, max_tokens={max_tokens}, messages_count={len(messages)}")
             # #endregion
             
             # Call communication model - concise responses only
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                reasoning_effort=self.reasoning_effort,
-                max_completion_tokens=max_tokens  # Concise responses: only wine names + brief reasons
-            )
+            if is_reasoning_model:
+                # Reasoning models (gpt-5.x, o1, o3):
+                # - Use max_completion_tokens (not max_tokens)
+                # - Use reasoning_effort
+                # - No temperature (not supported or not needed)
+                # - They use LOTS of tokens for internal "thinking", so increase significantly
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    reasoning_effort=self.reasoning_effort,
+                    max_completion_tokens=2000  # Reasoning models need much more for thinking+output
+                )
+            else:
+                # Non-reasoning models (GPT-4.1, gpt-4o-mini, etc.):
+                # - Use max_tokens (NOT max_completion_tokens)
+                # - Use temperature for natural, engaging communication (0.7 = creative but consistent)
+                # - No reasoning_effort (not supported)
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=0.7  # Natural, engaging sommelier tone (not too cold, not too random)
+                )
             
             message = response.choices[0].message.content
             

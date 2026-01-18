@@ -93,8 +93,8 @@ class Product(db.Model):
                     data['tasting_notes'] = row_dict['tasting_notes']
                 if row_dict.get('aromas'):
                     data['aromas'] = row_dict['aromas']
-                
-                # Wine Identity Card fields
+            
+        # Wine Identity Card fields
                 if row_dict.get('color'):
                     data['color'] = row_dict['color']
                 if row_dict.get('body') is not None:
@@ -115,8 +115,8 @@ class Product(db.Model):
                 # Image
                 if row_dict.get('image_url'):
                     data['image_url'] = row_dict['image_url']
-                
-                if detailed:
+        
+        if detailed:
                     if row_dict.get('cost_price'):
                         data['cost_price'] = float(row_dict['cost_price'])
                     if row_dict.get('margin'):

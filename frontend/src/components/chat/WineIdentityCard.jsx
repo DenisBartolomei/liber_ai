@@ -159,7 +159,7 @@ function WineIdentityCard({ wine, onClose }) {
               <Wine className={`w-16 h-16 ${wineTypeInfo.iconColor}`} />
             </div>
           </motion.div>
-          
+
           {/* Wine Info */}
           <div className="flex-1 text-center md:text-left min-w-0">
             <motion.div 
@@ -227,7 +227,7 @@ function WineIdentityCard({ wine, onClose }) {
             )}
           </div>
         </div>
-      </div>
+                </div>
 
       {/* Content */}
       <div className="p-6 md:p-8 space-y-6">
@@ -243,7 +243,7 @@ function WineIdentityCard({ wine, onClose }) {
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gold-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                 <Sparkles className="w-5 h-5 text-white" />
-              </div>
+                </div>
               <div>
                 <h3 className="text-sm font-bold text-burgundy-900 uppercase tracking-wide mb-2">
                   Perché questo vino per te
@@ -254,7 +254,7 @@ function WineIdentityCard({ wine, onClose }) {
               </div>
             </div>
           </motion.div>
-        )}
+            )}
 
         {/* Description - Always Visible */}
         {wine.description && (
@@ -295,23 +295,23 @@ function WineIdentityCard({ wine, onClose }) {
               Profilo Sensoriale
             </h3>
             <div className="space-y-4">
-              {wine.body !== null && wine.body !== undefined && (
+            {wine.body !== null && wine.body !== undefined && (
                 <ProgressBar
                   value={wine.body}
                   label={wine.body <= 3 ? 'Corpo Leggero' : wine.body <= 6 ? 'Corpo Medio' : 'Corpo Pieno'}
                   color="bg-gradient-to-r from-gold-400 to-gold-600"
                   icon={Activity}
                 />
-              )}
-              {wine.acidity_level !== null && wine.acidity_level !== undefined && (
+            )}
+            {wine.acidity_level !== null && wine.acidity_level !== undefined && (
                 <ProgressBar
                   value={wine.acidity_level}
                   label={wine.acidity_level <= 3 ? 'Acidità Bassa' : wine.acidity_level <= 6 ? 'Acidità Media' : 'Acidità Vivace'}
                   color="bg-gradient-to-r from-green-400 to-emerald-600"
                   icon={Droplets}
                 />
-              )}
-              {isRedWine && wine.tannin_level !== null && wine.tannin_level !== undefined && (
+            )}
+            {isRedWine && wine.tannin_level !== null && wine.tannin_level !== undefined && (
                 <ProgressBar
                   value={wine.tannin_level}
                   label={wine.tannin_level <= 3 ? 'Tannini Morbidi' : wine.tannin_level <= 6 ? 'Tannini Medi' : 'Tannini Potenti'}
@@ -319,9 +319,9 @@ function WineIdentityCard({ wine, onClose }) {
                   icon={Activity}
                 />
               )}
-            </div>
+              </div>
           </motion.div>
-        )}
+            )}
 
         {/* Two Column: Aromas & Color */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -378,10 +378,10 @@ function WineIdentityCard({ wine, onClose }) {
                   'bg-burgundy-600'
                 }`} />
                 {wine.color}
-              </div>
+            </div>
             </motion.div>
           )}
-        </div>
+            </div>
 
         {/* Tasting Notes */}
         {wine.tasting_notes && (
@@ -427,7 +427,7 @@ function WineIdentityCard({ wine, onClose }) {
               ))}
             </div>
           </motion.div>
-        )}
+          )}
       </div>
     </motion.div>
   )

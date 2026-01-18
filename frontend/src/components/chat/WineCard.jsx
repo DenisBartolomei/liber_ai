@@ -76,42 +76,42 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
     >
       <div className="flex gap-2 md:gap-4 min-w-0">
         {/* Wine Image or Icon - sempre visibile */}
-        <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-burgundy-100">
-          {(() => {
-            const getImageUrl = () => {
-              if (!wine.image_url) return null
-              if (wine.image_url.startsWith('http')) return wine.image_url
-              if (wine.image_url.startsWith('/')) return wine.image_url
-              return `/${wine.image_url}`
-            }
-            const imageUrl = getImageUrl()
-            
-            if (imageUrl) {
-              return (
-                <img
-                  src={imageUrl}
-                  alt={wine.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none'
-                    if (e.target.nextSibling) {
-                      e.target.nextSibling.style.display = 'flex'
-                    }
-                  }}
-                />
-              )
-            }
-            return null
-          })()}
-          <div className={`w-full h-full items-center justify-center ${wine.image_url ? 'hidden' : 'flex'}`}>
-            <Wine className={`w-7 h-7 ${
-              wine.type === 'white' ? 'text-amber-600' :
-              wine.type === 'rose' ? 'text-pink-600' :
-              wine.type === 'sparkling' ? 'text-yellow-600' :
-              'text-burgundy-900'
-            }`} />
+          <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden bg-burgundy-100">
+            {(() => {
+              const getImageUrl = () => {
+                if (!wine.image_url) return null
+                if (wine.image_url.startsWith('http')) return wine.image_url
+                if (wine.image_url.startsWith('/')) return wine.image_url
+                return `/${wine.image_url}`
+              }
+              const imageUrl = getImageUrl()
+              
+              if (imageUrl) {
+                return (
+                  <img
+                    src={imageUrl}
+                    alt={wine.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                      if (e.target.nextSibling) {
+                        e.target.nextSibling.style.display = 'flex'
+                      }
+                    }}
+                  />
+                )
+              }
+              return null
+            })()}
+            <div className={`w-full h-full items-center justify-center ${wine.image_url ? 'hidden' : 'flex'}`}>
+              <Wine className={`w-7 h-7 ${
+                wine.type === 'white' ? 'text-amber-600' :
+                wine.type === 'rose' ? 'text-pink-600' :
+                wine.type === 'sparkling' ? 'text-yellow-600' :
+                'text-burgundy-900'
+              }`} />
+            </div>
           </div>
-        </div>
 
         {/* Wine Info - ora può occupare tutto lo spazio se non c'è icona */}
         <div className="flex-1 min-w-0 overflow-x-hidden">
