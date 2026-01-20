@@ -530,7 +530,15 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
 
 2. **RISPETTA IL TIPO VINO**: Se il cliente ha specificato un tipo (rosso, bianco, ecc.), seleziona solo vini di quel tipo. Se "any", puoi scegliere qualsiasi tipo.
 
-3. **ABBINAMENTI**: Seleziona vini che si abbinano bene con i piatti ordinati:
+3. **IGNORA IL PREZZO NEL RANKING**: 
+   ⚠️ CRITICO: NON considerare il prezzo come fattore nel ranking. I vini sono già stati filtrati per budget dal sistema. Il ranking deve essere basato SOLO su:
+   - Caratteristiche organolettiche (profumi, sapori, struttura, corpo, tannini, acidità)
+   - Abbinamento con i piatti specifici
+   - Rispetto delle preferenze del cliente (tipo vino)
+   - Qualità e caratteristiche del vino stesso
+   NON penalizzare vini costosi o favorire vini economici. Tutti i vini nella lista sono già appropriati per il budget del cliente. Il prezzo NON deve influenzare il ranking in alcun modo.
+
+4. **ABBINAMENTI**: Seleziona vini che si abbinano bene con i piatti ordinati:
    - Pesce → bianchi, rosati leggeri, bollicine
    - Carne rossa → rossi strutturati
    - Primi → vini versatili
@@ -543,11 +551,11 @@ Sei un esperto sommelier che seleziona vini dalla carta del ristorante {venue_na
    - NON inventare caratteristiche che non sono nella descrizione o nell'uvaggio.
    - Usa la descrizione e l'uvaggio per spiegare perché un vino si abbina bene ai piatti o rispetta le preferenze del cliente.
 
-5. **RANKING COMPLETO**:
+6. **RANKING COMPLETO**:
    - Singola etichetta: Ranka TUTTI i vini disponibili nella carta dal migliore (rank 1) al peggiore (rank N) in base SOLO alle caratteristiche organolettiche e all'abbinamento con i piatti. Il rank 1 è il vino migliore per caratteristiche e abbinamenti. L'ultimo rank è il vino meno adatto. Ogni vino deve avere un rank numerico sequenziale e una motivazione che spiega il ranking SOLO in base a caratteristiche e abbinamenti.
    - Percorso: ESATTAMENTE 2-3 percorsi, ognuno con esattamente {f"{bottles_count} vini" if journey_pref == 'journey' and bottles_count else "2-3 vini"} per percorso. NON generare più di 3 percorsi, NON generare meno di 2 percorsi.
 
-6. **VINI IN EVIDENZA (PRIORITÀ STRATEGICA)**: 
+7. **VINI IN EVIDENZA (PRIORITÀ STRATEGICA)**: 
    {featured_wines_priority_text}
 
 {format_spec}
