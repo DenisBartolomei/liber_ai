@@ -683,7 +683,7 @@ function DashboardAnalytics() {
                   )}
                 </motion.div>
 
-                {/* Wine Type Distribution */}
+                {/* Wine Type Distribution - Pie Chart */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -691,29 +691,42 @@ function DashboardAnalytics() {
                   className="card"
                 >
                   <h3 className="font-display text-lg font-semibold text-burgundy-900 mb-4 flex items-center gap-2">
-                    <Wine className="w-5 h-5" />
+                    <PieChart className="w-5 h-5" />
                     Distribuzione Tipi Vino
                   </h3>
-                  <div className="space-y-3">
-                    {operationalData.wine_type_distribution?.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <span className="text-sm text-burgundy-700 capitalize">{item.type}</span>
-                        <div className="flex items-center gap-3">
-                          <div className="w-32 bg-burgundy-100 rounded-full h-2">
-                            <div
-                              className="bg-gold-500 h-2 rounded-full"
-                              style={{
-                                width: `${(item.count / Math.max(...(operationalData.wine_type_distribution || []).map(d => d.count))) * 100}%`
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm font-semibold text-burgundy-900 w-8 text-right">
-                            {item.count}
-                          </span>
-                        </div>
+                  {operationalData.wine_type_distribution && operationalData.wine_type_distribution.length > 0 ? (
+                    <div className="flex flex-col items-center gap-6 py-4">
+                      {/* Pie Chart SVG */}
+                      <div className="w-full flex justify-center">
+                        <PieChartComponent data={operationalData.wine_type_distribution} />
                       </div>
-                    ))}
-                  </div>
+                      {/* Legend */}
+                      <div className="w-full space-y-2">
+                        {operationalData.wine_type_distribution.map((item, idx) => {
+                          const colors = ['#722F37', '#D4AF37', '#8B4513', '#A0522D', '#CD853F']
+                          const total = operationalData.wine_type_distribution.reduce((sum, d) => sum + d.count, 0)
+                          const percentage = total > 0 ? ((item.count / total) * 100).toFixed(1) : 0
+                          return (
+                            <div key={idx} className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-4 h-4 rounded"
+                                  style={{ backgroundColor: colors[idx % colors.length] }}
+                                />
+                                <span className="text-burgundy-700 capitalize">{item.type}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-burgundy-900 font-semibold">{item.count}</span>
+                                <span className="text-burgundy-500 text-xs">({percentage}%)</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-burgundy-500 text-center py-8">Nessun dato disponibile</p>
+                  )}
                 </motion.div>
 
               </div>
