@@ -183,7 +183,13 @@ function CustomerChat() {
         setTokenLoading(false)
       } catch (error) {
         console.error('Error creating access token:', error)
-        setTokenError(error.response?.data?.message || 'Errore nel recupero del token di accesso')
+        
+        // Check if it's a WiFi verification error
+        if (error.response?.data?.error_code === 'WIFI_VERIFICATION_FAILED') {
+          setTokenError('WiFi del locale richiesto')
+        } else {
+          setTokenError(error.response?.data?.message || 'Errore nel recupero del token di accesso')
+        }
         setTokenLoading(false)
       }
     }
@@ -664,6 +670,8 @@ function CustomerChat() {
 
   // Show token error if any
   if (tokenError) {
+    const isWifiError = tokenError === 'WiFi del locale richiesto'
+    
     return (
       <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -671,17 +679,36 @@ function CustomerChat() {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
-            Errore di Accesso
+            {isWifiError ? 'Connessione WiFi Richiesta' : 'Errore di Accesso'}
           </h2>
-          <p className="text-cream-100/70 mb-6">{tokenError}</p>
-          <p className="text-sm text-cream-100/50 mb-6">
-            Scansiona nuovamente il QR code per ottenere un nuovo token di accesso.
+          <p className="text-cream-100/70 mb-6">
+            {isWifiError 
+              ? 'Per accedere al sommelier virtuale, devi essere connesso al WiFi del locale. Connettiti al WiFi e scansiona nuovamente il QR code.'
+              : tokenError
+            }
           </p>
+          {isWifiError && (
+            <div className="bg-burgundy-800/50 rounded-xl p-4 mb-6 text-left">
+              <p className="text-sm text-cream-100/80 mb-2">
+                <strong className="text-gold-400">Come connettersi:</strong>
+              </p>
+              <ol className="text-sm text-cream-100/70 list-decimal list-inside space-y-1">
+                <li>Vai nelle impostazioni WiFi del tuo dispositivo</li>
+                <li>Cerca e connettiti al WiFi del ristorante</li>
+                <li>Scansiona nuovamente il QR code</li>
+              </ol>
+            </div>
+          )}
+          {!isWifiError && (
+            <p className="text-sm text-cream-100/50 mb-6">
+              Scansiona nuovamente il QR code per ottenere un nuovo token di accesso.
+            </p>
+          )}
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
           >
-            Ricarica Pagina
+            {isWifiError ? 'Riprova' : 'Ricarica Pagina'}
           </button>
         </div>
       </div>

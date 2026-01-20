@@ -45,6 +45,11 @@ class Venue(db.Model):
     annual_conversation_limit = db.Column(db.Integer, default=None)  # None = unlimited
     annual_conversation_limit_start_date = db.Column(db.DateTime, default=None)  # Date when the annual limit period started
     
+    # WiFi Verification
+    wifi_ip_address = db.Column(db.String(45), default=None)  # Single IP address (IPv4 or IPv6)
+    wifi_ip_range = db.Column(db.String(100), default=None)  # IP range (CIDR) or comma-separated IPs
+    wifi_verification_enabled = db.Column(db.Boolean, default=False)  # Enable/disable WiFi verification
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -77,6 +82,9 @@ class Venue(db.Model):
             'is_onboarded': self.is_onboarded,
             'plan': self.plan,
             'annual_conversation_limit': self.annual_conversation_limit,
+            'wifi_ip_address': self.wifi_ip_address,
+            'wifi_ip_range': self.wifi_ip_range,
+            'wifi_verification_enabled': self.wifi_verification_enabled,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'featured_wines': self.get_featured_wines()  # Include featured wines for easy access
         }

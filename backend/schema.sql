@@ -67,6 +67,11 @@ CREATE TABLE IF NOT EXISTS venues (
     annual_conversation_limit INTEGER DEFAULT NULL,  -- NULL = unlimited
     annual_conversation_limit_start_date TIMESTAMP DEFAULT NULL,  -- Date when the annual limit period started
     
+    -- WiFi Verification
+    wifi_ip_address VARCHAR(45) DEFAULT NULL,  -- Single IP address (IPv4 or IPv6)
+    wifi_ip_range VARCHAR(100) DEFAULT NULL,  -- IP range (CIDR) or comma-separated IPs
+    wifi_verification_enabled BOOLEAN DEFAULT FALSE,  -- Enable/disable WiFi verification
+    
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

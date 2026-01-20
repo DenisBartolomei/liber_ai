@@ -14,6 +14,7 @@ from app.models import Venue, Session, Message, WineProposal, Product, AccessTok
 from app.services.ai_agent import AIAgentService
 from app.services.communication_model import CommunicationModelService
 from app.services.conversation_manager import ConversationManager
+from app.utils.ip_verification import get_client_ip, verify_wifi_access
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,18 @@ def create_start_token():
     if not venue:
         return jsonify({'message': 'Locale non trovato'}), 404
     
+    # Verify WiFi access if enabled
+    client_ip = get_client_ip(request)
+    is_allowed, wifi_message = verify_wifi_access(venue, client_ip)
+    
+    if not is_allowed:
+        logger.warning(f"WiFi verification failed for venue {venue.id}: {wifi_message} (IP: {client_ip})")
+        return jsonify({
+            'message': wifi_message,
+            'error_code': 'WIFI_VERIFICATION_FAILED',
+            'requires_wifi': True
+        }), 403
+    
     # Check annual conversation limit (informational, doesn't block token creation)
     can_create, limit_message = venue.can_create_conversation()
     if not can_create:
@@ -107,7 +120,7 @@ def create_start_token():
         expires_in_minutes=10
     )
     
-    logger.info(f"Created start token {access_token.token[:8]}... for venue {venue.id}")
+    logger.info(f"Created start token {access_token.token[:8]}... for venue {venue.id} (IP: {client_ip})")
     
     return jsonify({
         'access_token': access_token.token,
