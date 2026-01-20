@@ -6,6 +6,9 @@ Two-phase system:
 """
 from typing import Optional, Dict, List
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_bottles_needed(guest_count: int, courses_per_person: float = 2.0) -> int:
@@ -135,6 +138,10 @@ def get_b2c_system_prompt(
     Generate prompt for wine recommendations.
     Used AFTER opening prompt, when customer has confirmed.
     """
+    # Safety check: remove budget if present (wines are already filtered by budget)
+    if gathered_info and 'budget' in gathered_info:
+        logger.warning("Budget found in gathered_info in get_b2c_system_prompt - removing it")
+        gathered_info = {k: v for k, v in gathered_info.items() if k != 'budget'}
     
     style_intros = {
         'professional': f"Sei il sommelier di {venue_name}. Sei elegante e competente, sai raccontare il vino con passione.",
@@ -570,11 +577,16 @@ def get_communication_prompt(
         sommelier_style: Style of sommelier
         wine_selection: JSON from fine-tuned selector with 'wines' or 'journeys'
         context: Context with dishes, guest_count
-        gathered_info: Preferences
+        gathered_info: Preferences (wine_type, journey_preference) - budget is NOT included
         
     Returns:
         System prompt for communication model
     """
+    # Safety check: remove budget if present (wines are already filtered by budget)
+    if 'budget' in gathered_info:
+        logger.warning("Budget found in gathered_info in get_communication_prompt - removing it")
+        gathered_info = {k: v for k, v in gathered_info.items() if k != 'budget'}
+    
     style_intros = {
         'professional': f"Sei il sommelier di {venue_name}. Sei elegante e competente, sai raccontare il vino con passione.",
         'friendly': f"Sei il sommelier di {venue_name}. Sei caloroso, informale e ami condividere la tua passione per il vino.",
@@ -720,11 +732,30 @@ def get_b2c_clarification_prompt(
     
     prompt = f"""{intro}
 
+## FOCUS SULLA RICHIESTA SPECIFICA
+
+Il cliente ha fatto una domanda o richiesta SPECIFICA. Il tuo compito è rispondere SOLO a quella richiesta, in modo diretto e conciso.
+
+**NON fare:**
+- Introduzioni generiche ("Come posso aiutarti?", "Certamente!", ecc.)
+- Recap di informazioni già date ("Come hai detto prima...", "Ricordi che...", ecc.)
+- Spiegazioni non richieste o informazioni extra
+- Nuove proposte o suggerimenti oltre a quelli già nelle card
+- Frasi di cortesia lunghe o preamboli
+
+**Fai:**
+- Rispondi DIRETTAMENTE alla domanda/richiesta del cliente
+- Sii CONCISO (massimo 2-3 frasi se possibile, espandi solo se la domanda lo richiede)
+- Usa le informazioni dei vini proposti nelle card
+- Se la domanda è su un vino specifico, parla solo di quel vino
+- Se la domanda è su differenze, confronta solo i vini richiesti
+- Se la domanda è tecnica, rispondi in modo chiaro e accessibile
+
 ## IL TUO COMPITO
 
 I vini sono già stati proposti al cliente attraverso le card nella chat. Il cliente può scegliere SOLO dai vini già proposti.
 
-Il tuo compito è rispondere a domande e chiarimenti sui vini, senza fare nuove proposte.
+Il tuo compito è rispondere DIRETTAMENTE alla richiesta specifica del cliente, senza fare nuove proposte.
 
 ## REGOLE CRITICHE
 
@@ -755,6 +786,9 @@ Il tuo compito è rispondere a domande e chiarimenti sui vini, senza fare nuove 
 - Proporre nuovi vini o suggerire alternative oltre a quelle già proposte
 - Dire "potrei consigliarti..." o "un'altra opzione potrebbe essere..."
 - Frasi che implicano nuove proposte
+- Introduzioni generiche o preamboli ("Certamente!", "Come hai detto...", "Ti spiego...")
+- Recap di informazioni già comunicate
+- Spiegazioni lunghe quando una risposta breve è sufficiente
 
 ## FORMATO RISPOSTA OBBLIGATORIO
 
@@ -762,18 +796,23 @@ Il tuo compito è rispondere a domande e chiarimenti sui vini, senza fare nuove 
 - "Il mio consiglio", "Un'alternativa interessante"
 - Formati tipo "Nome Vino - €Prezzo"
 - Elenchi di raccomandazioni o nuove proposte
+- Introduzioni generiche ("Come posso aiutarti?", "Certamente!", "Perfetto!")
+- Recap ("Come hai detto prima...", "Ricordi che...")
 
 ✓ USA INVECE:
-- Risposte DIRETTE alla domanda del cliente
+- Risposte DIRETTE e IMMEDIATE alla domanda del cliente
 - Linguaggio naturale conversazionale
 - Se chiedono caratteristiche di un vino, descrivile chiaramente senza formato di suggerimento
+- Se la domanda è breve, rispondi in modo breve (1-2 frasi)
+- Espandi solo se la domanda richiede una spiegazione dettagliata
 
 **USA:**
 - Linguaggio naturale e conversazionale
-- Spiegazioni chiare e accessibili
+- Spiegazioni chiare e accessibili, MA CONCISE
 - Riferimenti ai vini proposti nelle card
 - Confronti tra vini proposti quando utile
 - Descrizioni basate sulle informazioni della carta
+- Risposte dirette senza preamboli
 
 ## ESEMPI DI DOMANDE VALIDE
 

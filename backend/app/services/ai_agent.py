@@ -278,12 +278,16 @@ class AIAgentService:
             logger.info(f"Opening prompt context: dishes={active_context.get('dishes', [])}, guest_count={active_context.get('guest_count')}, preferences={active_context.get('preferences', {})}")
             logger.info(f"Opening prompt gathered_info: {gathered_info}")
             
+            # Remove budget from gathered_info before passing to prompt
+            # Budget is only used for filtering wines, models should never see it
+            gathered_info_for_model = {k: v for k, v in gathered_info.items() if k != 'budget'}
+            
             # Use simple opening prompt (no wine list needed, just welcome and recap)
             system_prompt = get_b2c_opening_prompt(
                 venue_name=venue.name,
                 sommelier_style=venue.sommelier_style or 'professional',
                 context=active_context,
-                gathered_info=gathered_info
+                gathered_info=gathered_info_for_model  # Without budget
             )
             
             logger.info(f"Generated opening system_prompt: {system_prompt[:500]}...")
@@ -534,12 +538,16 @@ class AIAgentService:
             if budget_max:
                 max_price_for_model = budget_max * 1.15
             
+            # Remove budget from gathered_info before passing to models
+            # Budget is only used for filtering wines, models should never see it
+            gathered_info_for_model = {k: v for k, v in gathered_info.items() if k != 'budget'}
+            
             fine_tuned_selector = FineTunedWineSelector()
             wine_selection = fine_tuned_selector.select_wines(
                 venue_name=venue.name,
                 venue_id=venue.id,
                 context=active_context,
-                gathered_info=gathered_info,
+                gathered_info=gathered_info_for_model,  # Without budget
                 all_wines=all_wines,
                 history=history,
                 user_message=user_message,
@@ -588,6 +596,10 @@ class AIAgentService:
                 wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
                 logger.info(f"Passing first 3 wines to CommunicationModel (out of {len(wine_selection.get('wines', []))} total)")
             
+            # Remove budget from gathered_info before passing to communication model
+            # Budget is only used for filtering wines, models should never see it
+            gathered_info_for_model = {k: v for k, v in gathered_info.items() if k != 'budget'}
+            
             communication_service = CommunicationModelService()
             try:
                 ai_message = communication_service.generate_message(
@@ -595,7 +607,7 @@ class AIAgentService:
                     sommelier_style=venue.sommelier_style or 'professional',
                     wine_selection=wine_selection_for_communication,
                     context=active_context,
-                    gathered_info=gathered_info,
+                    gathered_info=gathered_info_for_model,  # Without budget
                     history=history,
                     user_message=user_message
                 )
@@ -741,13 +753,17 @@ class AIAgentService:
         """
         logger.info("Using legacy fallback method for wine recommendations")
         
+        # Remove budget from gathered_info before passing to prompt
+        # Budget is only used for filtering wines, models should never see it
+        gathered_info_for_model = {k: v for k, v in gathered_info.items() if k != 'budget'}
+        
         # Use the recommendation prompt (legacy)
         system_prompt = get_b2c_system_prompt(
             venue_name=venue.name,
             cuisine_type=venue.cuisine_type,
             sommelier_style=venue.sommelier_style or 'professional',
             context=active_context,
-            gathered_info=gathered_info,
+            gathered_info=gathered_info_for_model,  # Without budget
             is_first_message=False
         )
         
@@ -1040,12 +1056,16 @@ class AIAgentService:
         featured_wines = venue.get_featured_wines() if hasattr(venue, 'get_featured_wines') else []
         max_price_for_model = budget_max * 1.15 if budget_max else None
 
+        # Remove budget from gathered_info before passing to models
+        # Budget is only used for filtering wines, models should never see it
+        gathered_info_for_model = {k: v for k, v in gathered_info.items() if k != 'budget'}
+
         fine_tuned_selector = FineTunedWineSelector()
         wine_selection = fine_tuned_selector.select_wines(
             venue_name=venue.name,
             venue_id=venue.id,
             context=active_context,
-            gathered_info=gathered_info,
+            gathered_info=gathered_info_for_model,  # Without budget
             all_wines=all_wines,
             history=history,
             user_message=user_message,

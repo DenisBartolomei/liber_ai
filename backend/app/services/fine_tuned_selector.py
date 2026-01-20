@@ -57,8 +57,8 @@ class FineTunedWineSelector:
             venue_name: Name of the venue
             venue_id: ID of the venue
             context: Context with dishes, guest_count
-            gathered_info: Preferences (wine_type, journey_preference, budget)
-            all_wines: Complete list of wines from DB
+            gathered_info: Preferences (wine_type, journey_preference) - budget is NOT included
+            all_wines: Complete list of wines from DB (already filtered by budget)
             history: Conversation history
             user_message: Current user message
             featured_wines: Optional list of product IDs that should be prioritized (max 2)
@@ -67,6 +67,11 @@ class FineTunedWineSelector:
         Returns:
             Dict with 'wines' (for single mode) or 'journeys' (for journey mode)
         """
+        # Safety check: remove budget if present (wines are already filtered by budget)
+        if 'budget' in gathered_info:
+            logger.warning("Budget found in gathered_info - removing it (wines already filtered by budget)")
+            gathered_info = {k: v for k, v in gathered_info.items() if k != 'budget'}
+        
         if not all_wines:
             logger.warning("No wines available for selection")
             return {'wines': [], 'journeys': []}

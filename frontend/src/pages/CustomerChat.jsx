@@ -14,7 +14,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Search,
-  Star
+  Star,
+  ArrowUp
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { venueService, menuService, chatService } from '../services/api'
@@ -120,6 +121,7 @@ function CustomerChat() {
   const [showProceedButton, setShowProceedButton] = useState(false)
   const [proceedLoading, setProceedLoading] = useState(false)
   const [precomputeStatus, setPrecomputeStatus] = useState(null)
+  const [showClarificationHint, setShowClarificationHint] = useState(false)
   
   // Calculate bottles when journey is selected or guest count changes
   useEffect(() => {
@@ -256,6 +258,21 @@ function CustomerChat() {
         wineIds: firstRecommendation.wine_ids || []
       })
     }
+  }, [messages, recommendedState.messageId])
+
+  // Show clarification hint when in clarification mode and recommendations exist
+  useEffect(() => {
+    if (messages.length === 0) {
+      setShowClarificationHint(false)
+      return
+    }
+    
+    const lastMessage = messages[messages.length - 1]
+    const isClarification = lastMessage?.metadata?.is_clarification === true
+    const hasRecommendations = recommendedState.messageId !== null
+    
+    // Show hint if in clarification mode and recommendations exist
+    setShowClarificationHint(isClarification && hasRecommendations)
   }, [messages, recommendedState.messageId])
 
   const loadVenueAndMenu = async () => {
@@ -571,6 +588,9 @@ function CustomerChat() {
     addAssistantMessage(confirmationMsg)
     setMessagesWithActionsHandled(prev => new Set([...prev, messageId]))
     
+    // Hide proceed button after confirmation
+    setShowProceedButton(false)
+    
     // Show feedback form after confirmation message is shown
     setTimeout(() => {
       setShowFeedback(true)
@@ -611,6 +631,9 @@ function CustomerChat() {
     // Add confirmation message directly as assistant message (NO AI call)
     addAssistantMessage(confirmationMsg)
     setMessagesWithActionsHandled(prev => new Set([...prev, messageId]))
+    
+    // Hide proceed button after confirmation
+    setShowProceedButton(false)
     
     // Show feedback form after confirmation message is shown
     setTimeout(() => {
@@ -1255,15 +1278,17 @@ function CustomerChat() {
         <div className="max-w-2xl mx-auto space-y-4 w-full">
           <AnimatePresence mode="popLayout">
             {visibleMessages.map((message, msgIdx) => {
-              const hasRecommendation = Boolean(recommendedState.messageId)
               const isAssistant = message.role === 'assistant'
-              const useRecommendedCards = isAssistant && hasRecommendation
-              const displayMode = useRecommendedCards ? recommendedState.mode : message.mode
-              const displayWines = useRecommendedCards ? recommendedState.wines : message.wines
-              const displayJourneys = useRecommendedCards ? recommendedState.journeys : message.journeys
-              const actionMessageId = recommendedState.messageId || message.id
+              
+              // Show cards ONLY in the message from communication model (is_recommending)
+              const isRecommendationMessage = isAssistant && message.metadata?.is_recommending === true
+              const displayMode = isRecommendationMessage ? (message.mode || 'single') : null
+              const displayWines = isRecommendationMessage ? (message.wines || []) : []
+              const displayJourneys = isRecommendationMessage ? (message.journeys || []) : []
+              
+              // Use message ID for actions (buttons, selections)
+              const actionMessageId = message.id
               const rankingsMessageId =
-                recommendedState.messageId ||
                 message.metadata?.rankings_message_id ||
                 message.message_id ||
                 message.id
@@ -1719,6 +1744,25 @@ function CustomerChat() {
                 )}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Clarification Hint - Show when in clarification mode */}
+      {showClarificationHint && (
+        <div className="border-t border-burgundy-100 bg-white px-4 py-3">
+          <div className="max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="px-4 py-3 bg-gold-50 border-l-4 border-gold-500 rounded-lg"
+            >
+              <p className="text-burgundy-900 font-medium flex items-center gap-2">
+                <ArrowUp className="w-5 h-5 text-gold-600" />
+                Torna sulle card sopra per scegliere
+              </p>
+            </motion.div>
           </div>
         </div>
       )}
