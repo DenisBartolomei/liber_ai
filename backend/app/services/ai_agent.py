@@ -590,9 +590,9 @@ class AIAgentService:
             # Create a limited wine_selection with only first 3 wines for CommunicationModel
             wine_selection_for_communication = wine_selection.copy()
             if journey_pref == 'single' and has_wines:
-            # Limit to first 3 wines for communication model
-            wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
-            logger.info(f"Passing first 3 wines to CommunicationModel (out of {len(wine_selection.get('wines', []))} total)")
+                # Limit to first 3 wines for communication model
+                wine_selection_for_communication['wines'] = wine_selection.get('wines', [])[:3]
+                logger.info(f"Passing first 3 wines to CommunicationModel (out of {len(wine_selection.get('wines', []))} total)")
             
             # Note: gathered_info already has budget removed (removed earlier)
             communication_service = CommunicationModelService()
