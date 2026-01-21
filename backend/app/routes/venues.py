@@ -4,6 +4,7 @@ Venue Routes for LIBER Sommelier AI
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.orm.attributes import flag_modified
 from app import db
 from app.models import Venue, User
 from app.services.qr_generator import QRGeneratorService
@@ -24,7 +25,7 @@ def get_venue_by_slug(slug):
     if not venue:
         return jsonify({'message': 'Locale non trovato'}), 404
     
-    # Return limited info for public access
+    # Return limited info for public access (including menu/wine list links for landing page)
     return jsonify({
         'id': venue.id,
         'name': venue.name,
@@ -33,7 +34,11 @@ def get_venue_by_slug(slug):
         'cuisine_type': venue.cuisine_type,
         'logo_url': venue.logo_url,
         'primary_color': venue.primary_color,
-        'welcome_message': venue.welcome_message or 'Benvenuto! Sono il tuo sommelier virtuale. Come posso aiutarti nella scelta del vino oggi?'
+        'welcome_message': venue.welcome_message or 'Benvenuto! Sono il tuo sommelier virtuale. Come posso aiutarti nella scelta del vino oggi?',
+        'menu_link_enabled': venue.menu_link_enabled,
+        'menu_link': venue.menu_link,
+        'wine_list_link_enabled': venue.wine_list_link_enabled,
+        'wine_list_link': venue.wine_list_link
     }), 200
 
 
@@ -76,12 +81,16 @@ def update_venue(venue_id):
     logger.info(f"Updating venue {venue_id} with data: {list(data.keys()) if data else 'None'}")
     
     # Handle featured_wines separately with validation
+    has_featured_wines_update = False
     if 'featured_wines' in data:
         featured_wines = data.get('featured_wines', [])
         success, message = venue.set_featured_wines(featured_wines)
         if not success:
             return jsonify({'message': message}), 400
         # featured_wines is now saved in venue.preferences via set_featured_wines
+        # Flag preferences as modified so SQLAlchemy detects the JSONB change
+        flag_modified(venue, 'preferences')
+        has_featured_wines_update = True
         # Remove from data to avoid double processing
         data.pop('featured_wines')
     
@@ -101,7 +110,8 @@ def update_venue(venue_id):
         'name', 'description', 'cuisine_type', 'menu_style', 
         'preferences', 'target_audience', 'logo_url', 'primary_color',
         'welcome_message', 'sommelier_style', 'is_onboarded',
-        'wifi_ip_address', 'wifi_ip_range', 'wifi_verification_enabled'
+        'wifi_ip_address', 'wifi_ip_range', 'wifi_verification_enabled',
+        'menu_link_enabled', 'menu_link', 'wine_list_link_enabled', 'wine_list_link'
     ]
     
     changes = {}
@@ -113,8 +123,11 @@ def update_venue(venue_id):
                 setattr(venue, field, new_value)
                 changes[field] = {'old': old_value, 'new': new_value}
     
-    if changes:
-        logger.info(f"Venue {venue_id} changes: {changes}")
+    if changes or has_featured_wines_update:
+        if changes:
+            logger.info(f"Venue {venue_id} changes: {changes}")
+        if has_featured_wines_update:
+            logger.info(f"Venue {venue_id} featured_wines updated")
         try:
             db.session.commit()
             logger.info(f"Venue {venue_id} updated successfully. is_onboarded: {venue.is_onboarded}")

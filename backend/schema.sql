@@ -72,6 +72,12 @@ CREATE TABLE IF NOT EXISTS venues (
     wifi_ip_range VARCHAR(100) DEFAULT NULL,  -- IP range (CIDR) or comma-separated IPs
     wifi_verification_enabled BOOLEAN DEFAULT FALSE,  -- Enable/disable WiFi verification
     
+    -- Digital Menu and Wine List Links
+    menu_link_enabled BOOLEAN DEFAULT FALSE,  -- Enable/disable menu link button
+    menu_link VARCHAR(500) DEFAULT NULL,  -- URL to digital menu
+    wine_list_link_enabled BOOLEAN DEFAULT FALSE,  -- Enable/disable wine list link button
+    wine_list_link VARCHAR(500) DEFAULT NULL,  -- URL to digital wine list
+    
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

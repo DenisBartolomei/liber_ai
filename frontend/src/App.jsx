@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 // Pages
 import LandingPage from './pages/LandingPage'
 import CustomerChat from './pages/CustomerChat'
+import VenueLanding from './pages/VenueLanding'
 import VenueMenu from './pages/VenueMenu'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -27,6 +28,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         
         {/* B2C Customer Routes (accessed via QR code) */}
+        <Route path="/v/:venueSlug/home" element={<VenueLanding />} />
         <Route path="/v/:venueSlug" element={<CustomerChat />} />
         <Route path="/v/:venueSlug/menu" element={<VenueMenu />} />
         

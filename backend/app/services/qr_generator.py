@@ -59,8 +59,8 @@ class QRGeneratorService:
             # Return storage path (not URL, since bucket is private)
             return f"{self.qr_bucket}/{storage_path}"
         
-        # Generate the URL
-        venue_url = f"{self.frontend_url}/v/{venue.slug}"
+        # Generate the URL - point to landing page
+        venue_url = f"{self.frontend_url}/v/{venue.slug}/home"
         
         # Create QR code
         qr = qrcode.QRCode(
@@ -134,7 +134,7 @@ class QRGeneratorService:
         Returns:
             Base64 encoded PNG image
         """
-        venue_url = f"{self.frontend_url}/v/{venue.slug}"
+        venue_url = f"{self.frontend_url}/v/{venue.slug}/home"
         
         qr = qrcode.QRCode(
             version=1,
@@ -185,7 +185,7 @@ class QRGeneratorService:
         filename = f"qr_{venue.slug}_{size}.png"
         storage_path = filename  # Store at root of bucket
         
-        venue_url = f"{self.frontend_url}/v/{venue.slug}"
+        venue_url = f"{self.frontend_url}/v/{venue.slug}/home"
         
         qr = qrcode.QRCode(
             version=1,

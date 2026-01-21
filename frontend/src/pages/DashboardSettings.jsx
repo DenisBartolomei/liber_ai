@@ -18,7 +18,8 @@ import {
   X,
   Edit3,
   Wifi,
-  ExternalLink
+  ExternalLink,
+  Menu
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { venueService, menuService, productService } from '../services/api'
@@ -72,6 +73,12 @@ function DashboardSettings() {
   const [wifiVerificationEnabled, setWifiVerificationEnabled] = useState(false)
   const [wifiIpAddress, setWifiIpAddress] = useState('')
   const [wifiIpRange, setWifiIpRange] = useState('')
+  
+  // Digital menu and wine list links state
+  const [menuLinkEnabled, setMenuLinkEnabled] = useState(false)
+  const [menuLink, setMenuLink] = useState('')
+  const [wineListLinkEnabled, setWineListLinkEnabled] = useState(false)
+  const [wineListLink, setWineListLink] = useState('')
 
   // Customer URL with real slug
   const customerUrl = venue?.slug 
@@ -89,6 +96,11 @@ function DashboardSettings() {
       setWifiVerificationEnabled(venue.wifi_verification_enabled || false)
       setWifiIpAddress(venue.wifi_ip_address || '')
       setWifiIpRange(venue.wifi_ip_range || '')
+      // Sync digital menu and wine list links
+      setMenuLinkEnabled(venue.menu_link_enabled || false)
+      setMenuLink(venue.menu_link || '')
+      setWineListLinkEnabled(venue.wine_list_link_enabled || false)
+      setWineListLink(venue.wine_list_link || '')
     }
   }, [venue])
 
@@ -248,7 +260,11 @@ function DashboardSettings() {
         featured_wines: selectedFeaturedWines,
         wifi_verification_enabled: wifiVerificationEnabled,
         wifi_ip_address: wifiIpAddress || null,
-        wifi_ip_range: wifiIpRange || null
+        wifi_ip_range: wifiIpRange || null,
+        menu_link_enabled: menuLinkEnabled,
+        menu_link: menuLinkEnabled ? (menuLink || null) : null,
+        wine_list_link_enabled: wineListLinkEnabled,
+        wine_list_link: wineListLinkEnabled ? (wineListLink || null) : null
       }
       const response = await venueService.updateVenue(venue.id, updateData)
       updateVenue(response.data.venue)
@@ -877,6 +893,127 @@ function DashboardSettings() {
               )}
             </div>
           )}
+        </div>
+      </motion.div>
+
+      {/* Digital Menu and Wine List Links Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="card"
+      >
+        <div className="flex items-start gap-3 mb-6">
+          <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+            <Menu className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h2 className="font-display text-lg font-semibold text-burgundy-900">
+              Menu e Carta Vini Digitali
+            </h2>
+            <p className="text-sm text-burgundy-600">
+              Configura i link ai menu e carte vini digitali accessibili dalla pagina QR code
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Menu Link Configuration */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-cream-50 rounded-xl border border-burgundy-200">
+              <input
+                type="checkbox"
+                id="menu_link_enabled"
+                checked={menuLinkEnabled}
+                onChange={(e) => setMenuLinkEnabled(e.target.checked)}
+                className="w-5 h-5 text-gold-600 rounded focus:ring-gold-500 cursor-pointer"
+              />
+              <label htmlFor="menu_link_enabled" className="flex-1 cursor-pointer">
+                <div className="font-medium text-burgundy-900">
+                  Abilita link Menù
+                </div>
+                <div className="text-sm text-burgundy-600 mt-1">
+                  Mostra il pulsante "Menù" nella pagina accessibile via QR code
+                </div>
+              </label>
+            </div>
+
+            {menuLinkEnabled && (
+              <div className="bg-burgundy-50/50 p-6 rounded-xl border border-burgundy-200">
+                <label className="block text-sm font-medium text-burgundy-700 mb-2">
+                  URL del Menù Digitale
+                </label>
+                <input
+                  type="url"
+                  value={menuLink}
+                  onChange={(e) => setMenuLink(e.target.value)}
+                  placeholder="https://esempio.com/menu"
+                  className="input-field w-full"
+                />
+                <p className="text-xs text-burgundy-600 mt-2">
+                  Inserisci l'URL completo del tuo menù digitale (es. PDF, sito web, ecc.)
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Wine List Link Configuration */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-4 bg-cream-50 rounded-xl border border-burgundy-200">
+              <input
+                type="checkbox"
+                id="wine_list_link_enabled"
+                checked={wineListLinkEnabled}
+                onChange={(e) => setWineListLinkEnabled(e.target.checked)}
+                className="w-5 h-5 text-gold-600 rounded focus:ring-gold-500 cursor-pointer"
+              />
+              <label htmlFor="wine_list_link_enabled" className="flex-1 cursor-pointer">
+                <div className="font-medium text-burgundy-900">
+                  Abilita link Carta dei vini
+                </div>
+                <div className="text-sm text-burgundy-600 mt-1">
+                  Mostra il pulsante "Carta dei vini" nella pagina accessibile via QR code
+                </div>
+              </label>
+            </div>
+
+            {wineListLinkEnabled && (
+              <div className="bg-burgundy-50/50 p-6 rounded-xl border border-burgundy-200">
+                <label className="block text-sm font-medium text-burgundy-700 mb-2">
+                  URL della Carta dei Vini Digitale
+                </label>
+                <input
+                  type="url"
+                  value={wineListLink}
+                  onChange={(e) => setWineListLink(e.target.value)}
+                  placeholder="https://esempio.com/carta-vini"
+                  className="input-field w-full"
+                />
+                <p className="text-xs text-burgundy-600 mt-2">
+                  Inserisci l'URL completo della tua carta dei vini digitale (es. PDF, sito web, ecc.)
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Info Box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900 mb-2">
+                  Come funziona:
+                </p>
+                <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
+                  <li>I link configurati appariranno come pulsanti nella pagina accessibile via QR code</li>
+                  <li>I clienti potranno accedere ai menu/carte vini digitali senza restrizioni WiFi</li>
+                  <li>Il pulsante "Liber - Il tuo sommelier" è sempre visibile e richiede connessione WiFi se configurata</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
 

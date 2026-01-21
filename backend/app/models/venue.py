@@ -50,6 +50,12 @@ class Venue(db.Model):
     wifi_ip_range = db.Column(db.String(100), default=None)  # IP range (CIDR) or comma-separated IPs
     wifi_verification_enabled = db.Column(db.Boolean, default=False)  # Enable/disable WiFi verification
     
+    # Digital Menu and Wine List Links
+    menu_link_enabled = db.Column(db.Boolean, default=False)  # Enable/disable menu link button
+    menu_link = db.Column(db.String(500), default=None)  # URL to digital menu
+    wine_list_link_enabled = db.Column(db.Boolean, default=False)  # Enable/disable wine list link button
+    wine_list_link = db.Column(db.String(500), default=None)  # URL to digital wine list
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -85,6 +91,10 @@ class Venue(db.Model):
             'wifi_ip_address': self.wifi_ip_address,
             'wifi_ip_range': self.wifi_ip_range,
             'wifi_verification_enabled': self.wifi_verification_enabled,
+            'menu_link_enabled': self.menu_link_enabled,
+            'menu_link': self.menu_link,
+            'wine_list_link_enabled': self.wine_list_link_enabled,
+            'wine_list_link': self.wine_list_link,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'featured_wines': self.get_featured_wines()  # Include featured wines for easy access
         }
