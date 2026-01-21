@@ -163,14 +163,11 @@ def get_qr_code(venue_id):
     qr_service = QRGeneratorService()
     qr_base64 = qr_service.generate_base64(venue)
     
-    # Also save file version if not exists (returns storage path like "qrcodes/qr_slug.png")
-    storage_path = None
-    if not venue.qr_code_url:
-        storage_path = qr_service.generate_for_venue(venue)
-        venue.qr_code_url = storage_path
-        db.session.commit()
-    else:
-        storage_path = venue.qr_code_url
+    # Always regenerate saved QR code to ensure it points to the correct URL (landing page)
+    # This ensures that downloaded QR codes always point to /v/{slug}/home
+    storage_path = qr_service.generate_for_venue(venue, force_regenerate=True)
+    venue.qr_code_url = storage_path
+    db.session.commit()
     
     # Generate signed URL for download (bucket is private)
     signed_url = None
@@ -193,7 +190,7 @@ def get_qr_code(venue_id):
         'qr_code_url': f"data:image/png;base64,{qr_base64}",
         'qr_code_storage_path': storage_path,
         'qr_code_download_url': signed_url,  # Signed URL for download (bucket is private)
-        'venue_url': f"/v/{venue.slug}"
+        'venue_url': f"/v/{venue.slug}/home"
     }), 200
 
 
@@ -241,7 +238,7 @@ def regenerate_qr_code(venue_id):
         'qr_code_url': f"data:image/png;base64,{qr_base64}",
         'qr_code_storage_path': storage_path,
         'qr_code_download_url': signed_url,  # Signed URL for download (bucket is private)
-        'venue_url': f"/v/{venue.slug}"
+        'venue_url': f"/v/{venue.slug}/home"
     }), 200
 
 
