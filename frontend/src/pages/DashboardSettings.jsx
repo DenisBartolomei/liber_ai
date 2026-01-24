@@ -82,7 +82,7 @@ function DashboardSettings() {
 
   // Customer URL with real slug
   const customerUrl = venue?.slug 
-    ? `${window.location.origin}/v/${venue.slug}`
+    ? `${window.location.origin}/v/${venue.slug}/home`
     : null
 
   // Sync formData when venue changes

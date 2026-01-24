@@ -295,9 +295,13 @@ def change_password():
         return jsonify({'message': 'La nuova password deve essere di almeno 8 caratteri'}), 400
     
     user.set_password(new_password)
+    user.must_change_password = False
     db.session.commit()
     
-    return jsonify({'message': 'Password aggiornata'}), 200
+    return jsonify({
+        'message': 'Password aggiornata',
+        'user': user.to_dict()
+    }), 200
 
 
 @auth_bp.route('/debug/venue/<int:venue_id>', methods=['GET'])

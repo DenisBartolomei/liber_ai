@@ -1,6 +1,5 @@
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Sparkles, QrCode, BarChart3, MessageSquare, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Sparkles, QrCode, BarChart3, MessageSquare, CheckCircle2 } from 'lucide-react'
 import Logo from '../components/ui/Logo'
 
 function LandingPage() {
@@ -44,14 +43,7 @@ function LandingPage() {
               <Logo size="md" />
               <span className="font-display text-2xl font-bold text-burgundy-900">LIBER</span>
             </div>
-            <div className="flex items-center gap-4">
-              <Link to="/login" className="text-burgundy-900 hover:text-burgundy-700 font-medium">
-                Accedi
-              </Link>
-              <Link to="/register" className="btn-primary">
-                Inizia Ora
-              </Link>
-            </div>
+            <div />
           </div>
         </div>
       </nav>
@@ -78,12 +70,6 @@ function LandingPage() {
                 intelligente. Suggerimenti personalizzati, carta vini ottimizzata e analytics 
                 avanzate per il tuo locale.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/register" className="btn-primary inline-flex items-center justify-center gap-2">
-                  Inizia Ora
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
-              </div>
             </motion.div>
 
             <motion.div
@@ -200,31 +186,6 @@ function LandingPage() {
               </motion.div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24 px-4 bg-gradient-to-br from-burgundy-900 via-burgundy-800 to-burgundy-900">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="font-display text-4xl lg:text-5xl font-bold text-cream-50 mb-6">
-              Pronto a trasformare il tuo ristorante?
-            </h2>
-            <p className="text-lg text-cream-100/80 mb-8">
-              Porta l'esperienza enologica del tuo locale al livello successivo.
-            </p>
-            <Link 
-              to="/register" 
-              className="btn-secondary inline-flex items-center gap-2 text-lg px-8 py-4"
-            >
-              Registra il tuo Ristorante
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-          </motion.div>
         </div>
       </section>
 

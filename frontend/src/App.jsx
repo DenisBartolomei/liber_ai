@@ -7,7 +7,7 @@ import CustomerChat from './pages/CustomerChat'
 import VenueLanding from './pages/VenueLanding'
 import VenueMenu from './pages/VenueMenu'
 import Login from './pages/Login'
-import Register from './pages/Register'
+import ChangePassword from './pages/ChangePassword'
 import DashboardProducts from './pages/DashboardProducts'
 import DashboardSettings from './pages/DashboardSettings'
 import DashboardAnalytics from './pages/DashboardAnalytics'
@@ -25,7 +25,13 @@ function App() {
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        
+        {/* Change password (protected; required when must_change_password) */}
+        <Route path="/change-password" element={
+          <ProtectedRoute>
+            <ChangePassword />
+          </ProtectedRoute>
+        } />
         
         {/* B2C Customer Routes (accessed via QR code) */}
         <Route path="/v/:venueSlug/home" element={<VenueLanding />} />

@@ -49,9 +49,9 @@ export const authService = {
   login: (email, password) => 
     api.post('/auth/login', { email, password }),
   
-  register: (data) => 
-    api.post('/auth/register', data),
-  
+  changePassword: (current_password, new_password) =>
+    api.post('/auth/change-password', { current_password, new_password }),
+
   refreshToken: () => 
     api.post('/auth/refresh'),
   

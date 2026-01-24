@@ -1,0 +1,130 @@
+# LIBER onboarding config – Ristorante Da Mario (template)
+# Copia in clients/nuovo-cliente.yaml e compila. Esegui:
+#   cd backend && python -m scripts.onboard_client scripts/clients/nuovo-cliente.yaml
+
+venue:
+  name: Ristorante Da Mario
+  slug: ristorante-da-mario-demo   # opzionale; se omesso viene generato da name
+  description: Ristorante italiano tradizionale nel cuore della città
+  cuisine_type: italian
+  welcome_message: >
+    Benvenuto da Mario! Sono il sommelier virtuale e sono qui per aiutarti
+    a scegliere il vino perfetto per la tua serata. Dimmi cosa hai in mente!
+  sommelier_style: professional
+  plan: trial
+  is_onboarded: true
+  menu_style:
+    style: classic
+    focus: [italian, regional]
+
+users:
+  - email: mario@ristorantedamario.it
+    password: Cambiami123   # password iniziale: comunicala al cliente, dovrà cambiarla al primo accesso
+    first_name: Mario
+    last_name: Rossi
+    role: owner
+
+menu_items:
+  - name: Bruschetta al pomodoro
+    description: Pane tostato con pomodori freschi e basilico
+    category: antipasto
+    main_ingredient: verdure
+    cooking_method: al_forno
+    flavor_profile: [leggero, delicato]
+    price: 8
+  - name: Carpaccio di manzo
+    description: Fettine sottili di manzo crudo con rucola e grana
+    category: antipasto
+    main_ingredient: carne_rossa
+    cooking_method: crudo
+    flavor_profile: [delicato, umami]
+    price: 14
+  - name: Spaghetti alle vongole
+    description: Spaghetti con vongole veraci, aglio e prezzemolo
+    category: primo
+    main_ingredient: pesce
+    cooking_method: saltato
+    flavor_profile: [leggero, umami]
+    price: 16
+  - name: Risotto ai funghi porcini
+    description: Risotto cremoso con porcini freschi
+    category: primo
+    main_ingredient: riso
+    cooking_method: brasato
+    flavor_profile: [umami, delicato]
+    price: 18
+  - name: Tagliata di manzo
+    description: Tagliata con rucola, pomodorini e grana
+    category: secondo
+    main_ingredient: carne_rossa
+    cooking_method: grigliato
+    flavor_profile: [umami, grasso]
+    price: 24
+  - name: Branzino al forno
+    description: Branzino al forno con patate e olive
+    category: secondo
+    main_ingredient: pesce
+    cooking_method: al_forno
+    flavor_profile: [leggero, delicato]
+    price: 22
+  - name: Tiramisù
+    description: Classico tiramisù con mascarpone e caffè
+    category: dolce
+    flavor_profile: [dolce, grasso]
+    price: 8
+  - name: Panna cotta
+    description: Panna cotta con frutti di bosco
+    category: dolce
+    flavor_profile: [dolce, delicato]
+    price: 7
+
+products:
+  - name: Brunello di Montalcino DOCG 2018
+    type: red
+    region: Toscana
+    grape_variety: Sangiovese
+    vintage: 2018
+    price: 85
+    description: Un Brunello elegante e strutturato, espressione autentica del terroir di Montalcino.
+  - name: Barolo DOCG 2017
+    type: red
+    region: Piemonte
+    grape_variety: Nebbiolo
+    vintage: 2017
+    price: 120
+    description: Barolo classico dalle Langhe, potente ed elegante con grande potenziale di invecchiamento.
+  - name: Chianti Classico Riserva DOCG 2019
+    type: red
+    region: Toscana
+    grape_variety: Sangiovese
+    vintage: 2019
+    price: 45
+    description: Chianti Classico Riserva dal cuore del Gallo Nero, equilibrato e versatile.
+  - name: Gavi di Gavi DOCG 2022
+    type: white
+    region: Piemonte
+    grape_variety: Cortese
+    vintage: 2022
+    price: 35
+    description: Gavi elegante e minerale, perfetto aperitivo o compagno di piatti di pesce.
+  - name: Vermentino di Sardegna DOC 2023
+    type: white
+    region: Sardegna
+    grape_variety: Vermentino
+    vintage: 2023
+    price: 28
+    description: Vermentino aromatico e sapido, espressione del mare e del sole sardo.
+  - name: Franciacorta Brut DOCG
+    type: sparkling
+    region: Lombardia
+    grape_variety: Chardonnay, Pinot Nero
+    vintage: 2020
+    price: 55
+    description: Metodo classico italiano di grande eleganza, alternativa raffinata allo Champagne.
+  - name: Prosecco Superiore DOCG Valdobbiadene
+    type: sparkling
+    region: Veneto
+    grape_variety: Glera
+    vintage: 2023
+    price: 25
+    description: Prosecco vivace e fruttato dalle colline di Valdobbiadene.

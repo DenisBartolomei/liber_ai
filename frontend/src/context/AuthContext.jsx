@@ -61,7 +61,11 @@ export function AuthProvider({ children }) {
       
       setUser(userData)
       
-      // Redirect based on onboarding status
+      if (userData?.must_change_password) {
+        console.log('[AuthContext] Must change password, navigating to /change-password')
+        navigate('/change-password')
+        return { success: true }
+      }
       if (venueData?.is_onboarded) {
         console.log('[AuthContext] Venue is onboarded, navigating to dashboard')
         navigate('/dashboard')
@@ -76,41 +80,6 @@ export function AuthProvider({ children }) {
       return { 
         success: false, 
         error: error.response?.data?.message || 'Errore durante il login' 
-      }
-    }
-  }
-
-  const register = async (data) => {
-    try {
-      console.log('[AuthContext] Register attempt with data:', { ...data, password: '***' })
-      const response = await authService.register(data)
-      const { access_token, user: userData, venue: venueData } = response.data
-      
-      console.log('[AuthContext] Register response received')
-      console.log('[AuthContext] User data:', userData)
-      console.log('[AuthContext] Venue data:', venueData)
-      console.log('[AuthContext] Venue ID:', venueData?.id)
-      console.log('[AuthContext] Venue is_onboarded:', venueData?.is_onboarded)
-      
-      localStorage.setItem('token', access_token)
-      localStorage.setItem('user', JSON.stringify(userData))
-      if (venueData) {
-        localStorage.setItem('venue', JSON.stringify(venueData))
-        setVenue(venueData)
-        console.log('[AuthContext] Venue saved to localStorage and state')
-      } else {
-        console.error('[AuthContext] NO VENUE DATA from registration!')
-      }
-      
-      setUser(userData)
-      console.log('[AuthContext] Navigating to onboarding...')
-      navigate('/onboarding')
-      
-      return { success: true }
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.message || 'Errore durante la registrazione' 
       }
     }
   }
@@ -132,6 +101,28 @@ export function AuthProvider({ children }) {
     console.log('[AuthContext] Venue updated in localStorage and state')
   }
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const response = await authService.changePassword(currentPassword, newPassword)
+      const userData = response.data?.user
+      if (userData) {
+        setUser(userData)
+        localStorage.setItem('user', JSON.stringify(userData))
+      }
+      if (venue?.is_onboarded) {
+        navigate('/dashboard')
+      } else {
+        navigate('/onboarding')
+      }
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.message || 'Errore durante il cambio password'
+      }
+    }
+  }
+
   // Helper function to check if venue has premium plan
   const isPremiumPlan = (plan) => {
     const premiumPlans = ['premium', 'enterprise', 'professional']
@@ -145,9 +136,9 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user,
     isPremium: venue ? isPremiumPlan(venue.plan) : false,
     login,
-    register,
     logout,
-    updateVenue
+    updateVenue,
+    changePassword
   }
 
   return (

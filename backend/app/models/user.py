@@ -32,6 +32,7 @@ class User(db.Model):
     # Status
     is_active = db.Column(db.Boolean, default=True)
     is_verified = db.Column(db.Boolean, default=False)
+    must_change_password = db.Column(db.Boolean, default=False)
     
     # Email verification
     verification_token = db.Column(db.String(255))
@@ -74,6 +75,7 @@ class User(db.Model):
             'role': self.role,
             'is_active': self.is_active,
             'is_verified': self.is_verified,
+            'must_change_password': self.must_change_password if self.must_change_password is not None else False,
             'last_login_at': self.last_login_at.isoformat() if self.last_login_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

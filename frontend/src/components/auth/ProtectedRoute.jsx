@@ -3,17 +3,11 @@ import { useAuth } from '../../context/AuthContext'
 import LoadingSpinner from '../ui/LoadingSpinner'
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading, venue } = useAuth()
+  const { isAuthenticated, loading, user } = useAuth()
   const location = useLocation()
-
-  console.log('[ProtectedRoute] Rendering...')
-  console.log('[ProtectedRoute] isAuthenticated:', isAuthenticated)
-  console.log('[ProtectedRoute] loading:', loading)
-  console.log('[ProtectedRoute] venue:', venue)
-  console.log('[ProtectedRoute] venue?.id:', venue?.id)
+  const pathname = location.pathname
 
   if (loading) {
-    console.log('[ProtectedRoute] Still loading, showing spinner')
     return (
       <div className="min-h-screen flex items-center justify-center bg-cream-50">
         <LoadingSpinner size="lg" />
@@ -22,12 +16,13 @@ function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated) {
-    console.log('[ProtectedRoute] Not authenticated, redirecting to login')
-    // Redirect to login, saving the attempted location
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  console.log('[ProtectedRoute] Authenticated, rendering children')
+  if (user?.must_change_password && pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />
+  }
+
   return children
 }
 
