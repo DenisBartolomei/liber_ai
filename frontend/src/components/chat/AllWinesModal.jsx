@@ -1,13 +1,15 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Star } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import WineCard from './WineCard'
 
 function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, isLoading = false }) {
+  const { t } = useTranslation()
   if (!isOpen) return null
 
   const getRankLabel = (wine) => {
     const rank = wine.rank || 1
-    if (rank === 1) return '1° - Consiglio del Sommelier'
+    if (rank === 1) return `1° - ${t('customerChat:allWinesModal.sommelierChoice')}`
     if (rank === 2) return '2°'
     if (rank === 3) return '3°'
     return `${rank}°`
@@ -42,17 +44,17 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                   </div>
                   <div>
                     <h2 className="font-display text-lg md:text-2xl font-bold">
-                      Vedi altri vini
+                      {t('customerChat:allWinesModal.title')}
                     </h2>
                     <p className="text-xs md:text-sm text-cream-100/70">
-                      {wines?.length || 0} vini disponibili per la tua selezione
+                      {t('customerChat:allWinesModal.subtitle', { count: wines?.length || 0 })}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={onClose}
                   className="w-10 h-10 rounded-full bg-burgundy-700 hover:bg-burgundy-600 flex items-center justify-center transition-colors"
-                  aria-label="Chiudi"
+                  aria-label={t('common:buttons.close')}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -64,7 +66,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                   <div className="h-full flex items-center justify-center">
                     <div className="text-center">
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-burgundy-700 mb-4"></div>
-                      <p className="text-burgundy-600">Caricamento vini...</p>
+                      <p className="text-burgundy-600">{t('customerChat:allWinesModal.loadingWines')}</p>
                     </div>
                   </div>
                 ) : wines && wines.length > 0 ? (
@@ -111,7 +113,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                             {wine.reason && (
                               <div className="mt-2 p-3 bg-burgundy-50 border-l-4 border-burgundy-300 rounded-r overflow-x-hidden">
                                 <p className="text-xs font-medium text-burgundy-700 uppercase tracking-wide mb-1">
-                                  Motivazione
+                                  {t('customerChat:allWinesModal.motivation')}
                                 </p>
                                 <p className="text-sm text-burgundy-800 leading-relaxed break-words overflow-wrap-anywhere">
                                   {wine.reason}
@@ -127,10 +129,10 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
                   <div className="h-full flex items-center justify-center text-center">
                     <div>
                       <p className="text-burgundy-600 text-lg mb-2">
-                        Nessun vino disponibile
+                        {t('customerChat:allWinesModal.noWines')}
                       </p>
                       <p className="text-burgundy-400 text-sm">
-                        Non ci sono vini da mostrare
+                        {t('customerChat:allWinesModal.noWinesDescription')}
                       </p>
                     </div>
                   </div>
@@ -140,7 +142,7 @@ function AllWinesModal({ isOpen, onClose, wines, onSelectWine, selectedWineId, i
               {/* Footer */}
               <div className="border-t border-burgundy-200 bg-cream-100 px-4 md:px-6 py-3 md:py-4">
                 <p className="text-xs md:text-sm text-burgundy-600 text-center">
-                  Clicca su un vino per selezionarlo
+                  {t('customerChat:allWinesModal.clickToSelect')}
                 </p>
               </div>
             </motion.div>

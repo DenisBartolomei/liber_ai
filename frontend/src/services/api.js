@@ -138,10 +138,11 @@ export const chatService = {
   createStartToken: (venueSlug) =>
     api.get('/chat/start-token', { params: { venue_slug: venueSlug } }),
   
-  createSession: (venueSlug, accessToken) => 
-    api.post('/chat/sessions', { 
+  createSession: (venueSlug, accessToken, language = 'it') =>
+    api.post('/chat/sessions', {
       venue_slug: venueSlug,
-      access_token: accessToken
+      access_token: accessToken,
+      language: language
     }),
   
   sendMessage: (sessionToken, message, context = null) => 

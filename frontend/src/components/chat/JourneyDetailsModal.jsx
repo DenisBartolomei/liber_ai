@@ -1,7 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 function JourneyDetailsModal({ journey, isOpen, onClose }) {
+  const { t } = useTranslation()
   if (!isOpen || !journey) return null
 
   return (
@@ -29,7 +31,7 @@ function JourneyDetailsModal({ journey, isOpen, onClose }) {
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-burgundy-200">
                 <h3 className="font-display text-xl font-semibold text-burgundy-900">
-                  {journey.name || 'Dettagli percorso'}
+                  {journey.name || t('customerChat:journey.detailsTitle')}
                 </h3>
                 <button
                   onClick={onClose}
@@ -43,7 +45,7 @@ function JourneyDetailsModal({ journey, isOpen, onClose }) {
               <div className="p-6 overflow-y-auto flex-1">
                 {(journey.reason || journey.description) && (
                   <div className="mb-6">
-                    <h4 className="font-semibold text-burgundy-900 mb-2">Descrizione del percorso</h4>
+                    <h4 className="font-semibold text-burgundy-900 mb-2">{t('customerChat:journey.description')}</h4>
                     <p className="text-burgundy-700 leading-relaxed">
                       {journey.reason || journey.description}
                     </p>
@@ -52,7 +54,7 @@ function JourneyDetailsModal({ journey, isOpen, onClose }) {
                 
                 {journey.wines && journey.wines.length > 0 && (
                   <div>
-                    <h4 className="font-semibold text-burgundy-900 mb-3">Vini del percorso</h4>
+                    <h4 className="font-semibold text-burgundy-900 mb-3">{t('customerChat:journey.winesInJourney')}</h4>
                     <div className="space-y-3">
                       {journey.wines.map((wine, idx) => (
                         <div key={wine.id || idx} className="p-3 bg-cream-50 rounded-lg border border-burgundy-100">
@@ -61,10 +63,10 @@ function JourneyDetailsModal({ journey, isOpen, onClose }) {
                               <h5 className="font-semibold text-burgundy-900">{wine.name}</h5>
                               {wine.type && (
                                 <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-burgundy-100 text-burgundy-700">
-                                  {wine.type === 'red' ? 'Rosso' :
-                                   wine.type === 'white' ? 'Bianco' :
-                                   wine.type === 'rose' ? 'Rosato' :
-                                   wine.type === 'sparkling' ? 'Spumante' : wine.type}
+                                  {wine.type === 'red' ? t('customerChat:wineType.options.red.label') :
+                                   wine.type === 'white' ? t('customerChat:wineType.options.white.label') :
+                                   wine.type === 'rose' ? t('customerChat:wineType.options.rose.label') :
+                                   wine.type === 'sparkling' ? t('customerChat:wineType.options.sparkling.label') : wine.type}
                                 </span>
                               )}
                             </div>
@@ -87,7 +89,7 @@ function JourneyDetailsModal({ journey, isOpen, onClose }) {
                   onClick={onClose}
                   className="w-full px-4 py-2 bg-burgundy-900 text-cream-50 rounded-lg font-semibold hover:bg-burgundy-800 transition-colors"
                 >
-                  Chiudi
+                  {t('common:buttons.close')}
                 </button>
               </div>
             </div>

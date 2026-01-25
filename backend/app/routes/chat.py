@@ -309,10 +309,11 @@ def create_session():
     data = request.get_json()
     venue_slug = data.get('venue_slug')
     access_token_str = data.get('access_token')
-    
+    language = data.get('language', 'it')  # Default to Italian if not provided
+
     if not venue_slug:
         return jsonify({'message': 'venue_slug è obbligatorio'}), 400
-    
+
     if not access_token_str:
         return jsonify({
             'message': 'access_token è obbligatorio',
@@ -373,7 +374,10 @@ def create_session():
         device_type=request.headers.get('X-Device-Type'),
         user_agent=request.headers.get('User-Agent'),
         ip_address=request.remote_addr,
-        context={'access_token_id': access_token.id}  # Track which token was used
+        context={
+            'access_token_id': access_token.id,  # Track which token was used
+            'language': language  # Store user's language preference
+        }
     )
     
     # Mark token as used (one-time use)
@@ -647,6 +651,10 @@ def proceed_recommendations():
 
         history = session.get_conversation_history(limit=20)
         proceed_user_message = user_text.strip() if isinstance(user_text, str) and user_text.strip() else "Procedi al suggerimento"
+
+        # Extract language from context (default to 'it')
+        language = context.get('language', 'it')
+
         try:
             ai_message = communication_service.generate_message(
                 venue_name=venue.name,
@@ -655,7 +663,8 @@ def proceed_recommendations():
                 context=context,
                 gathered_info=gathered_info,
                 history=history,
-                user_message=proceed_user_message
+                user_message=proceed_user_message,
+                language=language
             )
         except Exception as e:
             logger.warning(f"Communication model failed in proceed: {e}")

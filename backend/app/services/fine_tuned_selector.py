@@ -48,11 +48,12 @@ class FineTunedWineSelector:
         history: List[Dict],
         user_message: str,
         featured_wines: Optional[List[int]] = None,
-        max_price: Optional[float] = None
+        max_price: Optional[float] = None,
+        language: str = 'it'
     ) -> Dict[str, Any]:
         """
         Select wines using fine-tuned model and return structured JSON.
-        
+
         Args:
             venue_name: Name of the venue
             venue_id: ID of the venue
@@ -63,7 +64,8 @@ class FineTunedWineSelector:
             user_message: Current user message
             featured_wines: Optional list of product IDs that should be prioritized (max 2)
             max_price: Optional maximum price (budget + 15%) - already calculated, model should not see original budget
-            
+            language: Language code ('it' or 'en') - default 'it'
+
         Returns:
             Dict with 'wines' (for single mode) or 'journeys' (for journey mode)
         """
@@ -78,6 +80,7 @@ class FineTunedWineSelector:
         
         # Build prompt for fine-tuned model
         system_prompt = get_finetuned_selection_prompt(
+            language=language,
             venue_name=venue_name,
             context=context,
             gathered_info=gathered_info,

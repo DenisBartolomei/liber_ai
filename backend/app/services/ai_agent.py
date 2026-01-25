@@ -88,7 +88,10 @@ class AIAgentService:
         active_context = context
         if not active_context:
             active_context = getattr(session, 'context', None) or {}
-        
+
+        # Extract language from context (default to 'it' if not found)
+        language = active_context.get('language', 'it')
+
         # Extract preferences from context (collected via UI, not LLM)
         # Ensure we have a preferences structure
         preferences = active_context.get('preferences', {})
@@ -179,6 +182,7 @@ class AIAgentService:
             
             # Use clarification prompt (no new wine proposals, only questions/answers)
             system_prompt = get_b2c_clarification_prompt(
+                language=language,
                 venue_name=venue.name,
                 sommelier_style=venue.sommelier_style or 'professional',
                 context=active_context,
@@ -285,6 +289,7 @@ class AIAgentService:
             # Use simple opening prompt (no wine list needed, just welcome and recap)
             # Note: gathered_info already has budget removed (removed earlier)
             system_prompt = get_b2c_opening_prompt(
+                language=language,
                 venue_name=venue.name,
                 sommelier_style=venue.sommelier_style or 'professional',
                 context=active_context,
@@ -550,7 +555,8 @@ class AIAgentService:
                 history=history,
                 user_message=user_message,
                 featured_wines=featured_wines,
-                max_price=max_price_for_model
+                max_price=max_price_for_model,
+                language=language
             )
             
             # Log detailed information about wines returned from model
@@ -604,7 +610,8 @@ class AIAgentService:
                     context=active_context,
                     gathered_info=gathered_info,  # Budget already removed earlier
                     history=history,
-                    user_message=user_message
+                    user_message=user_message,
+                    language=language
                 )
                 
                 # Ensure message is not empty
@@ -750,7 +757,11 @@ class AIAgentService:
         
         # Note: gathered_info already has budget removed (removed earlier in process_b2c_message)
         # Use the recommendation prompt (legacy)
+        # Extract language again for fallback method
+        language = active_context.get('language', 'it')
+
         system_prompt = get_b2c_system_prompt(
+            language=language,
             venue_name=venue.name,
             cuisine_type=venue.cuisine_type,
             sommelier_style=venue.sommelier_style or 'professional',
@@ -1048,6 +1059,9 @@ class AIAgentService:
         featured_wines = venue.get_featured_wines() if hasattr(venue, 'get_featured_wines') else []
         max_price_for_model = budget_max * 1.15 if budget_max else None
 
+        # Extract language from context (default to 'it')
+        language = active_context.get('language', 'it')
+
         # Note: gathered_info already has budget removed (removed earlier)
         fine_tuned_selector = FineTunedWineSelector()
         wine_selection = fine_tuned_selector.select_wines(
@@ -1059,7 +1073,8 @@ class AIAgentService:
             history=history,
             user_message=user_message,
             featured_wines=featured_wines,
-            max_price=max_price_for_model
+            max_price=max_price_for_model,
+            language=language
         )
 
         return {

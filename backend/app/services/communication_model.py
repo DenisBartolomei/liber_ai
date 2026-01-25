@@ -46,11 +46,12 @@ class CommunicationModelService:
         context: Dict,
         gathered_info: Dict,
         history: List[Dict],
-        user_message: str
+        user_message: str,
+        language: str = 'it'
     ) -> str:
         """
         Generate natural language message from structured wine selection.
-        
+
         Args:
             venue_name: Name of the venue
             sommelier_style: Style of sommelier (professional, friendly, expert, playful)
@@ -59,7 +60,8 @@ class CommunicationModelService:
             gathered_info: Preferences (wine_type, journey_preference) - budget is NOT included
             history: Conversation history
             user_message: Current user message
-            
+            language: Language code ('it' or 'en') - default 'it'
+
         Returns:
             Natural language message string
         """
@@ -70,6 +72,7 @@ class CommunicationModelService:
         
         # Build communication prompt
         system_prompt = get_communication_prompt(
+            language=language,
             venue_name=venue_name,
             sommelier_style=sommelier_style,
             wine_selection=wine_selection,

@@ -1,0 +1,18 @@
+{
+  "buttons": {
+    "next": "Avanti",
+    "back": "Indietro",
+    "confirm": "Conferma",
+    "send": "Invia",
+    "cancel": "Annulla",
+    "close": "Chiudi",
+    "save": "Salva",
+    "retry": "Riprova",
+    "viewAll": "Vedi tutti"
+  },
+  "loading": "Caricamento...",
+  "error": "Si è verificato un errore",
+  "success": "Operazione completata con successo",
+  "guest": "persona",
+  "guest_plural": "persone"
+}

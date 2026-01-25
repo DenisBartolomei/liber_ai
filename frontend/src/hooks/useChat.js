@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { chatService } from '../services/api'
 
-export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
+export function useChat(venueSlug = null, mode = 'b2c', accessToken = null, language = 'it') {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -16,10 +16,10 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     if (isInitializingRef.current) {
       return
     }
-    
+
     isInitializingRef.current = true
     try {
-      const response = await chatService.createSession(venueSlug, accessToken)
+      const response = await chatService.createSession(venueSlug, accessToken, language)
       setSessionToken(response.data.session_token)
     } catch (err) {
       console.error('Failed to create session:', err)
@@ -30,7 +30,7 @@ export function useChat(venueSlug = null, mode = 'b2c', accessToken = null) {
     } finally {
       isInitializingRef.current = false
     }
-  }, [venueSlug, accessToken])
+  }, [venueSlug, accessToken, language])
 
   // Initialize session for B2C mode (only if accessToken is available)
   useEffect(() => {

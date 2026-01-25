@@ -1,0 +1,18 @@
+{
+  "buttons": {
+    "next": "Next",
+    "back": "Back",
+    "confirm": "Confirm",
+    "send": "Send",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "retry": "Retry",
+    "viewAll": "View all"
+  },
+  "loading": "Loading...",
+  "error": "An error occurred",
+  "success": "Operation completed successfully",
+  "guest": "person",
+  "guest_plural": "people"
+}

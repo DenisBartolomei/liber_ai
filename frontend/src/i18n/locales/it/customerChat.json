@@ -1,0 +1,188 @@
+{
+  "intro": {
+    "welcome": "Benvenuto!",
+    "subtitle": "Il tuo Sommelier AI personale",
+    "description": "Sono il <strong>sommelier virtuale</strong> di <strong>{{venueName}}</strong>.",
+    "descriptionDetails": "Vi accompagnerò nella scelta del vino perfetto. Iniziamo con qualche semplice domanda, e poi procediamo alla selezione.",
+    "startButton": "Iniziamo!",
+    "poweredBy": "Powered by Liber"
+  },
+  "dishes": {
+    "title": "Cosa avete ordinato?",
+    "subtitle": "Seleziona i piatti per ricevere l'abbinamento perfetto",
+    "hint": "Puoi selezionare più piatti",
+    "noSelection": "Seleziona almeno un piatto per continuare",
+    "emptyMenu": "Il menu non è ancora stato caricato.",
+    "categories": {
+      "antipasto": "Antipasti",
+      "primo": "Primi Piatti",
+      "secondo": "Secondi Piatti",
+      "contorno": "Contorni",
+      "dolce": "Dolci",
+      "altro": "Altro"
+    }
+  },
+  "guests": {
+    "title": "Quanti siete a tavola?",
+    "subtitle": "Ci aiuta a suggerire le quantità giuste",
+    "label": "Numero di persone",
+    "bottlesSuggestion": "Per un percorso di degustazione, suggeriremmo <strong>{{bottlesCount}} {{bottlesWord}}</strong> per {{guestCount}} {{guestsWord}} (circa 2 portate a testa).",
+    "bottle": "bottiglia",
+    "bottles": "bottiglie"
+  },
+  "wineType": {
+    "title": "Che tipo di vino preferite?",
+    "subtitle": "Seleziona la tipologia o lascia scegliere al sommelier",
+    "options": {
+      "red": {
+        "label": "Rosso",
+        "description": "Vini corposi e strutturati"
+      },
+      "white": {
+        "label": "Bianco",
+        "description": "Vini freschi e aromatici"
+      },
+      "sparkling": {
+        "label": "Bollicine",
+        "description": "Spumanti e Champagne"
+      },
+      "rose": {
+        "label": "Rosato",
+        "description": "Vini leggeri e versatili"
+      },
+      "any": {
+        "label": "Lascia fare a te",
+        "description": "Mi affido al sommelier"
+      }
+    }
+  },
+  "journey": {
+    "title": "Preferisci un percorso di vini?",
+    "subtitle": "Scegli come accompagnare il tuo pasto",
+    "options": {
+      "single": {
+        "label": "Una sola etichetta",
+        "description": "Un vino che accompagni tutta la cena"
+      },
+      "journey": {
+        "label": "Percorso di vini",
+        "description": "Più vini scelti per ogni portata"
+      }
+    }
+  },
+  "budget": {
+    "title": "Budget per bottiglia",
+    "subtitle": "Inserisci il budget massimo o seleziona nessuna restrizione",
+    "inputLabel": "Budget per bottiglia (€)",
+    "inputPlaceholder": "Es. 25.00",
+    "inputHint": "Inserisci il budget massimo per bottiglia",
+    "noRestriction": "Nessuna restrizione",
+    "noRestrictionDescription": "Proponi i migliori vini disponibili",
+    "hint": "Il budget si intende per bottiglia"
+  },
+  "chat": {
+    "title": "Chat con il Sommelier",
+    "inputPlaceholder": "Rispondi al sommelier...",
+    "thinking": "Il sommelier sta pensando...",
+    "proceedButton": "Procedi al suggerimento",
+    "proceedLoading": "Sto preparando i suggerimenti...",
+    "preparingOptions": "Preparo le opzioni migliori per te...",
+    "retryLoading": "Riprova a caricare",
+    "clarificationHint": "Torna sulle card sopra per scegliere",
+    "noMessages": "Inizia la conversazione",
+    "recommendations": "I miei consigli per voi",
+    "journeyRecommendations": "I miei percorsi per voi",
+    "alternatives": "Alternative",
+    "personalSommelier": "Il tuo sommelier personale",
+    "dishesSelected": "piatti selezionati",
+    "confirmWine": "Conferma questa etichetta",
+    "confirmJourney": "Confirma questo percorso",
+    "viewAllWines": "Valuta tutti i vini",
+    "journeyDetails": "Dettagli percorso",
+    "selectJourney": "Seleziona questo percorso",
+    "journeySelected": "Selezionato",
+    "fallbackRecommendation": "Ecco le mie raccomandazioni per voi.",
+    "journeyName": "Percorso {{number}}",
+    "connectionError": "Errore di connessione",
+    "retryError": "Riprova"
+  },
+  "wineCard": {
+    "from": "Da",
+    "type": "Tipo",
+    "region": "Regione",
+    "vintage": "Annata",
+    "grapeVariety": "Uvaggio",
+    "selectButton": "Seleziona questo vino",
+    "selectedButton": "Selezionato",
+    "viewDetails": "Dettagli",
+    "whyRecommended": "Perché questo vino",
+    "tastingNotes": "Note di Degustazione",
+    "foodPairings": "Abbinamenti"
+  },
+  "journey": {
+    "modalTitle": "Dettagli del Percorso",
+    "detailsTitle": "Dettagli percorso",
+    "description": "Descrizione del percorso",
+    "winesInJourney": "Vini del percorso",
+    "selectButton": "Seleziona questo percorso",
+    "course": "Portata {{number}}",
+    "wines": "{{count}} vino",
+    "wines_plural": "{{count}} vini"
+  },
+  "allWinesModal": {
+    "title": "Vedi altri vini",
+    "subtitle": "{{count}} vini disponibili per la tua selezione",
+    "rank": "Posizione {{rank}}",
+    "sommelierChoice": "Consiglio del Sommelier",
+    "motivation": "Motivazione",
+    "noWines": "Nessun vino disponibile",
+    "noWinesDescription": "Non ci sono vini da mostrare",
+    "loadingWines": "Caricamento vini...",
+    "clickToSelect": "Clicca su un vino per selezionarlo",
+    "closeButton": "Chiudi"
+  },
+  "feedback": {
+    "title": "Come è stata la tua esperienza?",
+    "subtitle": "Il tuo feedback ci aiuta a migliorare",
+    "ratingLabel": "Valutazione",
+    "commentLabel": "Commenti (opzionale)",
+    "commentPlaceholder": "Vuoi aggiungere un commento? (opzionale)",
+    "submitButton": "Invia Feedback",
+    "submitting": "Invio...",
+    "skipButton": "Salta",
+    "thankYou": "Grazie per il tuo feedback! Buona cena! 🍷",
+    "enjoyMeal": "Buon appetito! 🍷"
+  },
+  "errors": {
+    "loadingVenue": "Impossibile caricare il ristorante. Verifica il link e riprova.",
+    "loadingMenu": "Errore nel caricamento del menu",
+    "tokenExpired": "Il token di accesso è scaduto. Scansiona nuovamente il QR code.",
+    "tokenError": "Errore nel recupero del token di accesso",
+    "wifiRequired": "WiFi del locale richiesto",
+    "wifiErrorTitle": "Connessione WiFi Richiesta",
+    "wifiErrorDescription": "Per accedere al sommelier virtuale, devi essere connesso al WiFi del locale. Connettiti al WiFi e scansiona nuovamente il QR code.",
+    "wifiHowToTitle": "Come connettersi:",
+    "wifiHowToStep1": "Vai nelle impostazioni WiFi del tuo dispositivo",
+    "wifiHowToStep2": "Cerca e connettiti al WiFi del ristorante",
+    "wifiHowToStep3": "Scansiona nuovamente il QR code",
+    "accessErrorTitle": "Errore di Accesso",
+    "accessTokenRequired": "Token di Accesso Richiesto",
+    "accessTokenDescription": "Devi scansionare il QR code per accedere al servizio.",
+    "scanAgain": "Scansiona nuovamente il QR code per ottenere un nuovo token di accesso.",
+    "reloadPage": "Ricarica Pagina",
+    "sessionCreation": "Errore nella creazione della sessione",
+    "sendingMessage": "Errore nell'invio del messaggio",
+    "generic": "Si è verificato un errore. Riprova.",
+    "loadingSuggestions": "Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.",
+    "loadingSuggestionsError": "Errore nel caricamento dei suggerimenti."
+  },
+  "buttons": {
+    "continue": "Continua",
+    "askSommelier": "Chiedi al Sommelier"
+  },
+  "confirmations": {
+    "wineSelected": "Perfetto! Abbiamo scelto {{wineName}}{{price}}. Grazie per la fiducia. Adesso potete chiedere al cameriere di portare questa etichetta. Buona cena!",
+    "journeySelected": "Perfetto! Abbiamo selezionato il percorso di degustazione:\n{{wineList}}\n\nChiedete al cameriere di portare queste etichette nell'ordine suggerito. Buona cena!",
+    "multipleWinesSelected": "Perfetto! Ho scelto {{wineNames}}. Grazie per la consulenza del sommelier. Chiamerò il cameriere per ordinare queste etichette. Buona cena!"
+  }
+}

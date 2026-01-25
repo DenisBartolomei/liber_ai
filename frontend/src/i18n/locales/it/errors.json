@@ -1,0 +1,19 @@
+{
+  "network": {
+    "offline": "Nessuna connessione internet",
+    "timeout": "La richiesta ha impiegato troppo tempo",
+    "serverError": "Errore del server. Riprova più tardi."
+  },
+  "validation": {
+    "required": "Questo campo è obbligatorio",
+    "invalidEmail": "Email non valida",
+    "invalidNumber": "Numero non valido",
+    "minValue": "Il valore minimo è {{min}}",
+    "maxValue": "Il valore massimo è {{max}}"
+  },
+  "auth": {
+    "unauthorized": "Non autorizzato",
+    "sessionExpired": "La sessione è scaduta",
+    "invalidCredentials": "Credenziali non valide"
+  }
+}

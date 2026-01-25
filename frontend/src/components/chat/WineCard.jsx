@@ -1,9 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wine, MapPin, Grape, Calendar, Euro, Check } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import WineIdentityCard from './WineIdentityCard'
 
 function WineCard({ wine, expanded = false, selected = false, onClick, isMainRecommendation = null }) {
+  const { t } = useTranslation()
   // Use wine.best if provided, otherwise fall back to isMainRecommendation prop
   const isBest = isMainRecommendation !== null ? isMainRecommendation : (wine.best === true)
   const [showReason, setShowReason] = useState(false)
@@ -48,13 +50,13 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
   const getWineTypeLabel = (type) => {
     switch (type?.toLowerCase()) {
       case 'red':
-        return 'Rosso'
+        return t('customerChat:wineType.options.red.label')
       case 'white':
-        return 'Bianco'
+        return t('customerChat:wineType.options.white.label')
       case 'rose':
-        return 'Rosato'
+        return t('customerChat:wineType.options.rose.label')
       case 'sparkling':
-        return 'Spumante'
+        return t('customerChat:wineType.options.sparkling.label')
       default:
         return type
     }
@@ -137,9 +139,9 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
                       setShowIdentityCard(true)
                     }}
                     className="ml-auto px-3 py-1.5 text-sm font-medium text-burgundy-700 bg-burgundy-50 hover:bg-burgundy-100 rounded-lg transition-colors"
-                    title="Carta di identità del vino"
+                    title={t('customerChat:wineCard.viewDetails')}
                   >
-                    Dettagli
+                    {t('customerChat:wineCard.viewDetails')}
                   </button>
                 )}
               </div>
@@ -178,7 +180,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
           {(showReason || expanded) && wine.reason && (
             <div className="mt-3 p-3 bg-gold-50 border-l-4 border-gold-500 rounded-r overflow-x-hidden">
               <p className="text-xs font-medium text-burgundy-700 uppercase tracking-wide mb-1">
-                Perché questo vino
+                {t('customerChat:wineCard.whyRecommended')}
               </p>
               <p className="text-sm text-burgundy-700 leading-relaxed break-words overflow-wrap-anywhere">
                 {wine.reason}
@@ -197,7 +199,7 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
           {expanded && wine.tasting_notes && (
             <div className="mt-3 pt-3 border-t border-burgundy-100 overflow-x-hidden">
               <p className="text-xs font-medium text-burgundy-500 uppercase tracking-wide mb-1">
-                Note di Degustazione
+                {t('customerChat:wineCard.tastingNotes')}
               </p>
               <p className="text-sm text-burgundy-700 break-words overflow-wrap-anywhere">{wine.tasting_notes}</p>
             </div>
@@ -207,11 +209,11 @@ function WineCard({ wine, expanded = false, selected = false, onClick, isMainRec
           {expanded && wine.food_pairings && wine.food_pairings.length > 0 && (
             <div className="mt-3 pt-3 border-t border-burgundy-100">
               <p className="text-xs font-medium text-burgundy-500 uppercase tracking-wide mb-2">
-                Abbinamenti
+                {t('customerChat:wineCard.foodPairings')}
               </p>
               <div className="flex flex-wrap gap-2">
                 {wine.food_pairings.map((pairing, idx) => (
-                  <span 
+                  <span
                     key={idx}
                     className="px-2 py-1 bg-cream-100 text-burgundy-700 rounded-md text-xs"
                   >

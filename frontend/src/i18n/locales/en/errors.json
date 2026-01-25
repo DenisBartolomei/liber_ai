@@ -1,0 +1,19 @@
+{
+  "network": {
+    "offline": "No internet connection",
+    "timeout": "Request took too long",
+    "serverError": "Server error. Please try again later."
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email",
+    "invalidNumber": "Invalid number",
+    "minValue": "Minimum value is {{min}}",
+    "maxValue": "Maximum value is {{max}}"
+  },
+  "auth": {
+    "unauthorized": "Unauthorized",
+    "sessionExpired": "Session expired",
+    "invalidCredentials": "Invalid credentials"
+  }
+}

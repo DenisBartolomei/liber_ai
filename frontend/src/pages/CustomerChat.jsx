@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Wine, 
-  Send, 
-  Sparkles, 
+import {
+  Wine,
+  Send,
+  Sparkles,
   RefreshCw,
   Users,
   ChevronDown,
@@ -18,6 +18,7 @@ import {
   ArrowUp
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useTranslation } from 'react-i18next'
 import { venueService, menuService, chatService } from '../services/api'
 import { useChat } from '../hooks/useChat'
 import { ThinkingMessages } from '../components/ui/LoadingSpinner'
@@ -25,30 +26,32 @@ import WineCard from '../components/chat/WineCard'
 import AllWinesModal from '../components/chat/AllWinesModal'
 import JourneyDetailsModal from '../components/chat/JourneyDetailsModal'
 import Logo from '../components/ui/Logo'
+import LanguageSwitcher from '../components/ui/LanguageSwitcher'
+import { useLanguageStore } from '../stores/languageStore'
 
-// Category labels for display
-const categoryLabels = {
-  'antipasto': 'Antipasti',
-  'primo': 'Primi Piatti',
-  'secondo': 'Secondi Piatti',
-  'contorno': 'Contorni',
-  'dolce': 'Dolci',
-  'altro': 'Altro'
-}
+// Category labels for display - now using translations
+const getCategoryLabels = (t) => ({
+  'antipasto': t('customerChat:dishes.categories.antipasto'),
+  'primo': t('customerChat:dishes.categories.primo'),
+  'secondo': t('customerChat:dishes.categories.secondo'),
+  'contorno': t('customerChat:dishes.categories.contorno'),
+  'dolce': t('customerChat:dishes.categories.dolce'),
+  'altro': t('customerChat:dishes.categories.altro')
+})
 
-// Wine type options
-const wineTypeOptions = [
-  { id: 'red', label: 'Rosso', icon: '🍷', description: 'Vini corposi e strutturati' },
-  { id: 'white', label: 'Bianco', icon: '🥂', description: 'Vini freschi e aromatici' },
-  { id: 'sparkling', label: 'Bollicine', icon: '🍾', description: 'Spumanti e Champagne' },
-  { id: 'rose', label: 'Rosato', icon: '🌸', description: 'Vini leggeri e versatili' },
-  { id: 'any', label: 'Lascia fare a te', icon: '✨', description: 'Mi affido al sommelier' }
+// Wine type options - now using translations
+const getWineTypeOptions = (t) => [
+  { id: 'red', label: t('customerChat:wineType.options.red.label'), icon: '🍷', description: t('customerChat:wineType.options.red.description') },
+  { id: 'white', label: t('customerChat:wineType.options.white.label'), icon: '🥂', description: t('customerChat:wineType.options.white.description') },
+  { id: 'sparkling', label: t('customerChat:wineType.options.sparkling.label'), icon: '🍾', description: t('customerChat:wineType.options.sparkling.description') },
+  { id: 'rose', label: t('customerChat:wineType.options.rose.label'), icon: '🌸', description: t('customerChat:wineType.options.rose.description') },
+  { id: 'any', label: t('customerChat:wineType.options.any.label'), icon: '✨', description: t('customerChat:wineType.options.any.description') }
 ]
 
-// Journey options
-const journeyOptions = [
-  { id: 'single', label: 'Una sola etichetta', icon: '🍷', description: 'Un vino che accompagni tutta la cena' },
-  { id: 'journey', label: 'Percorso di vini', icon: '🗺️', description: 'Più vini scelti per ogni portata' }
+// Journey options - now using translations
+const getJourneyOptions = (t) => [
+  { id: 'single', label: t('customerChat:journey.options.single.label'), icon: '🍷', description: t('customerChat:journey.options.single.description') },
+  { id: 'journey', label: t('customerChat:journey.options.journey.label'), icon: '🗺️', description: t('customerChat:journey.options.journey.description') }
 ]
 
 // Budget: now handled as number input + "Nessuna restrizione" button
@@ -76,22 +79,30 @@ function calculateBottlesNeeded(guestCount, coursesPerPerson = 2.0) {
 
 function CustomerChat() {
   const { venueSlug } = useParams()
+  const { t } = useTranslation()
+  const { language } = useLanguageStore()
+
+  // Get translated options
+  const categoryLabels = getCategoryLabels(t)
+  const wineTypeOptions = getWineTypeOptions(t)
+  const journeyOptions = getJourneyOptions(t)
+
   const [venue, setVenue] = useState(null)
   const [menuItems, setMenuItems] = useState([])
   const [venueLoading, setVenueLoading] = useState(true)
   const [venueError, setVenueError] = useState(null)
-  
+
   // Access token state
   const [accessToken, setAccessToken] = useState(null)
   const [tokenLoading, setTokenLoading] = useState(true)
   const [tokenError, setTokenError] = useState(null)
-  
+
   // Setup flow state - 6 steps: intro -> dishes -> guests -> wineType -> journey -> budget -> chat
   const [flowStep, setFlowStep] = useState('intro')
   const [selectedDishes, setSelectedDishes] = useState([])
   const [guestCount, setGuestCount] = useState(2)
   const [expandedCategories, setExpandedCategories] = useState({})
-  
+
   // New preference states
   const [selectedWineType, setSelectedWineType] = useState(null)
   const [selectedJourney, setSelectedJourney] = useState('single') // Default to 'single' - journey selection hidden
@@ -188,9 +199,9 @@ function CustomerChat() {
         
         // Check if it's a WiFi verification error
         if (error.response?.data?.error_code === 'WIFI_VERIFICATION_FAILED') {
-          setTokenError('WiFi del locale richiesto')
+          setTokenError(t('customerChat:errors.wifiRequired'))
         } else {
-          setTokenError(error.response?.data?.message || 'Errore nel recupero del token di accesso')
+          setTokenError(error.response?.data?.message || t('customerChat:errors.tokenError'))
         }
         setTokenLoading(false)
       }
@@ -214,7 +225,7 @@ function CustomerChat() {
     fetchWineRankings,
     precomputeRankings,
     proceedRecommendations
-  } = useChat(venueSlug, 'b2c', accessToken)
+  } = useChat(venueSlug, 'b2c', accessToken, language)
 
   const [recommendedState, setRecommendedState] = useState({
     messageId: null,
@@ -294,7 +305,7 @@ function CustomerChat() {
       }
     } catch (err) {
       console.error('Error loading venue/menu:', err)
-      setVenueError('Impossibile caricare il ristorante. Verifica il link e riprova.')
+      setVenueError(t('customerChat:errors.loadingVenue'))
     } finally {
       setVenueLoading(false)
     }
@@ -412,10 +423,11 @@ function CustomerChat() {
           : selectedBudget !== null 
             ? `€${selectedBudget}` 
             : 'Nessuna restrizione'
-      
+
       let initialMessage = `Siamo in ${guestCount} al tavolo. Abbiamo ordinato: ${dishNames}. Preferiamo ${wineTypeLabel}. Vogliamo ${journeyLabel}. Budget: ${budgetLabel}.`
       if (selectedJourney === 'journey') {
-        initialMessage += ` Vogliamo un percorso di ${bottlesCount} ${bottlesCount === 1 ? 'bottiglia' : 'bottiglie'}.`
+        const bottleWord = bottlesCount === 1 ? t('customerChat:guests.bottle') : t('customerChat:guests.bottles')
+        initialMessage += ` Vogliamo un percorso di ${bottlesCount} ${bottleWord}.`
       }
       
       // Send initial message (hidden from display)
@@ -485,11 +497,11 @@ function CustomerChat() {
   // Generate confirmation message with wine names
   const generateConfirmationMessage = (wines) => {
     if (!wines || wines.length === 0) {
-      return "Perfetto! Grazie per la consulenza del sommelier. Chiamerò il cameriere per ordinare. Buona cena!"
+      return t('customerChat:confirmations.multipleWinesSelected', { wineNames: '' })
     }
-    
+
     const wineNames = wines.map(w => w.name || 'vino').join(' e ')
-    return `Perfetto! Ho scelto ${wineNames}. Grazie per la consulenza del sommelier. Chiamerò il cameriere per ordinare queste etichette. Buona cena!`
+    return t('customerChat:confirmations.multipleWinesSelected', { wineNames })
   }
 
   // Generate continue message
@@ -514,10 +526,10 @@ function CustomerChat() {
       
       if (!response) {
         console.error('[CustomerChat] proceedRecommendations returned null/undefined')
-        addAssistantMessage('Non sono riuscito a caricare i suggerimenti. Riprova tra qualche secondo.')
+        addAssistantMessage(t('customerChat:errors.loadingSuggestions'))
       } else if (response.status >= 400) {
         console.error('[CustomerChat] proceedRecommendations error status:', response.status)
-        const errorMsg = response.data?.message || 'Errore nel caricamento dei suggerimenti.'
+        const errorMsg = response.data?.message || t('customerChat:errors.loadingSuggestionsError')
         addAssistantMessage(`⚠️ ${errorMsg}`)
       } else {
         console.log('[CustomerChat] Got recommendations, wines:', response.data?.wines?.length, 'hiding proceed button')
@@ -525,7 +537,7 @@ function CustomerChat() {
       }
     } catch (err) {
       console.error('[CustomerChat] Error in handleProceedSuggestions:', err)
-      const errorMsg = err.response?.data?.message || 'Si è verificato un errore. Riprova.'
+      const errorMsg = err.response?.data?.message || t('customerChat:errors.generic')
       addAssistantMessage(`⚠️ ${errorMsg}`)
     }
     
@@ -582,8 +594,11 @@ function CustomerChat() {
     }
     
     // Generate template confirmation message (from sommelier, not user)
-    const confirmationMsg = `Perfetto! Abbiamo scelto ${selectedWine.name}${selectedWine.price ? ` - €${selectedWine.price}` : ''}. Grazie per la fiducia. Adesso potete chiedere al cameriere di portare questa etichetta. Buona cena!`
-    
+    const confirmationMsg = t('customerChat:confirmations.wineSelected', {
+      wineName: selectedWine.name,
+      price: selectedWine.price ? ` - €${selectedWine.price}` : ''
+    })
+
     // Add confirmation message directly as assistant message (NO AI call)
     addAssistantMessage(confirmationMsg)
     setMessagesWithActionsHandled(prev => new Set([...prev, messageId]))
@@ -625,9 +640,9 @@ function CustomerChat() {
     const wineList = selectedJourney.wines
       .map(w => `- ${w.name}${w.price ? ` - €${w.price}` : ''}`)
       .join('\n')
-    
-    const confirmationMsg = `Perfetto! Abbiamo selezionato il percorso di degustazione:\n${wineList}\n\nChiedete al cameriere di portare queste etichette nell'ordine suggerito. Buona cena!`
-    
+
+    const confirmationMsg = t('customerChat:confirmations.journeySelected', { wineList })
+
     // Add confirmation message directly as assistant message (NO AI call)
     addAssistantMessage(confirmationMsg)
     setMessagesWithActionsHandled(prev => new Set([...prev, messageId]))
@@ -653,7 +668,7 @@ function CustomerChat() {
       await chatService.submitFeedback(sessionToken, rating, feedbackText)
       setShowFeedback(false)
       // Show thank you message
-      const thankYouMsg = "Grazie per il tuo feedback! Buona cena! 🍷"
+      const thankYouMsg = t('customerChat:feedback.thankYou')
       sendMessage(thankYouMsg)
     } catch (error) {
       console.error('[CustomerChat] Error submitting feedback:', error)
@@ -693,8 +708,8 @@ function CustomerChat() {
 
   // Show token error if any
   if (tokenError) {
-    const isWifiError = tokenError === 'WiFi del locale richiesto'
-    
+    const isWifiError = tokenError === t('customerChat:errors.wifiRequired')
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -702,36 +717,36 @@ function CustomerChat() {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
-            {isWifiError ? 'Connessione WiFi Richiesta' : 'Errore di Accesso'}
+            {isWifiError ? t('customerChat:errors.wifiErrorTitle') : t('customerChat:errors.accessErrorTitle')}
           </h2>
           <p className="text-cream-100/70 mb-6">
-            {isWifiError 
-              ? 'Per accedere al sommelier virtuale, devi essere connesso al WiFi del locale. Connettiti al WiFi e scansiona nuovamente il QR code.'
+            {isWifiError
+              ? t('customerChat:errors.wifiErrorDescription')
               : tokenError
             }
           </p>
           {isWifiError && (
             <div className="bg-burgundy-800/50 rounded-xl p-4 mb-6 text-left">
               <p className="text-sm text-cream-100/80 mb-2">
-                <strong className="text-gold-400">Come connettersi:</strong>
+                <strong className="text-gold-400">{t('customerChat:errors.wifiHowToTitle')}</strong>
               </p>
               <ol className="text-sm text-cream-100/70 list-decimal list-inside space-y-1">
-                <li>Vai nelle impostazioni WiFi del tuo dispositivo</li>
-                <li>Cerca e connettiti al WiFi del ristorante</li>
-                <li>Scansiona nuovamente il QR code</li>
+                <li>{t('customerChat:errors.wifiHowToStep1')}</li>
+                <li>{t('customerChat:errors.wifiHowToStep2')}</li>
+                <li>{t('customerChat:errors.wifiHowToStep3')}</li>
               </ol>
             </div>
           )}
           {!isWifiError && (
             <p className="text-sm text-cream-100/50 mb-6">
-              Scansiona nuovamente il QR code per ottenere un nuovo token di accesso.
+              {t('customerChat:errors.scanAgain')}
             </p>
           )}
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
           >
-            {isWifiError ? 'Riprova' : 'Ricarica Pagina'}
+            {isWifiError ? t('common:buttons.retry') : t('customerChat:errors.reloadPage')}
           </button>
         </div>
       </div>
@@ -744,7 +759,7 @@ function CustomerChat() {
       <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center">
         <div className="text-center">
           <Logo size="xl" animate className="mx-auto mb-4" />
-          <p className="text-cream-100/70">Caricamento...</p>
+          <p className="text-cream-100/70">{t('common:loading')}</p>
         </div>
       </div>
     )
@@ -759,16 +774,16 @@ function CustomerChat() {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
-            Token di Accesso Richiesto
+            {t('customerChat:errors.accessTokenRequired')}
           </h2>
           <p className="text-cream-100/70 mb-6">
-            Devi scansionare il QR code per accedere al servizio.
+            {t('customerChat:errors.accessTokenDescription')}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
           >
-            Ricarica Pagina
+            {t('customerChat:errors.reloadPage')}
           </button>
         </div>
       </div>
@@ -784,14 +799,14 @@ function CustomerChat() {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
-            Errore di Caricamento
+            {t('common:error')}
           </h2>
           <p className="text-cream-100/70 mb-6">{venueError}</p>
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
           >
-            Riprova
+            {t('common:buttons.retry')}
           </button>
         </div>
       </div>
@@ -804,7 +819,7 @@ function CustomerChat() {
       <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center">
         <div className="text-center">
           <Logo size="xl" animate className="mx-auto mb-4" />
-          <p className="text-cream-100/70">Caricamento...</p>
+          <p className="text-cream-100/70">{t('common:loading')}</p>
         </div>
       </div>
     )
@@ -823,9 +838,10 @@ function CustomerChat() {
                 <h1 className="font-display font-bold text-cream-50">
                   {venue?.name || 'Sommelier AI'}
                 </h1>
-                <p className="text-xs text-cream-100/70">Il tuo sommelier personale</p>
+                <p className="text-xs text-cream-100/70">{t('customerChat:intro.subtitle')}</p>
               </div>
             </div>
+            <LanguageSwitcher disabled={!!sessionToken} />
           </div>
         </header>
 
@@ -869,28 +885,26 @@ function CustomerChat() {
                   <Wine className="w-14 h-14 text-burgundy-900" />
                 </motion.div>
                 
-                <motion.h2 
+                <motion.h2
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 }}
                   className="font-display text-3xl font-bold text-cream-50 mb-4"
                 >
-                  Benvenuto!
+                  {t('customerChat:intro.welcome')}
                 </motion.h2>
-                
+
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.6 }}
                   className="bg-burgundy-800/50 rounded-2xl p-6 max-w-md mx-auto"
                 >
-                  <p className="text-cream-100 text-lg leading-relaxed mb-4">
-                    Sono il <span className="text-gold-400 font-semibold">sommelier virtuale</span> di{' '}
-                    <span className="text-gold-400 font-semibold">{venue?.name || 'questo ristorante'}</span>.
-                  </p>
+                  <p className="text-cream-100 text-lg leading-relaxed mb-4" dangerouslySetInnerHTML={{
+                    __html: t('customerChat:intro.description', { venueName: venue?.name || 'questo ristorante' })
+                  }} />
                   <p className="text-cream-100/80 leading-relaxed">
-                    Vi accompagnerò nella scelta del vino perfetto. 
-                    Iniziamo con qualche semplice domanda, e poi procediamo alla selezione.
+                    {t('customerChat:intro.descriptionDetails')}
                   </p>
                 </motion.div>
 
@@ -902,7 +916,7 @@ function CustomerChat() {
                 >
                   <span className="inline-flex items-center gap-2 px-4 py-2 bg-burgundy-800/50 rounded-full text-cream-100/70 text-sm">
                     <Sparkles className="w-4 h-4 text-gold-400" />
-                    Powered by Liber
+                    {t('customerChat:intro.poweredBy')}
                   </span>
                 </motion.div>
               </motion.div>
@@ -917,10 +931,10 @@ function CustomerChat() {
                 exit={{ opacity: 0, x: -20 }}
               >
                 <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                  Cosa avete ordinato?
+                  {t('customerChat:dishes.title')}
                 </h2>
                 <p className="text-cream-100/70 mb-6">
-                  Seleziona i piatti per ricevere l'abbinamento perfetto
+                  {t('customerChat:dishes.subtitle')}
                 </p>
 
                 {/* Menu categories */}
@@ -999,7 +1013,7 @@ function CustomerChat() {
                   <div className="text-center py-12">
                     <Wine className="w-12 h-12 text-burgundy-600 mx-auto mb-4" />
                     <p className="text-cream-100/70">
-                      Il menu non è ancora stato caricato.
+                      {t('customerChat:dishes.emptyMenu')}
                     </p>
                   </div>
                 )}
@@ -1018,12 +1032,12 @@ function CustomerChat() {
                 <div className="w-20 h-20 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Users className="w-10 h-10 text-gold-500" />
                 </div>
-                
+
                 <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                  Quanti siete a tavola?
+                  {t('customerChat:guests.title')}
                 </h2>
                 <p className="text-cream-100/70 mb-8">
-                  Ci aiuta a suggerire le quantità giuste
+                  {t('customerChat:guests.subtitle')}
                 </p>
 
                 <div className="flex items-center justify-center gap-6">
@@ -1045,9 +1059,9 @@ function CustomerChat() {
                     +
                   </button>
                 </div>
-                
+
                 <p className="mt-4 text-cream-100/50 text-sm">
-                  {guestCount === 1 ? 'persona' : 'persone'}
+                  {t('common:guest', { count: guestCount })}
                 </p>
 
                 {/* Bottles suggestion */}
@@ -1057,9 +1071,14 @@ function CustomerChat() {
                   transition={{ delay: 0.3 }}
                   className="mt-8 bg-burgundy-800/30 rounded-xl p-4 border border-gold-500/20 max-w-md mx-auto"
                 >
-                  <p className="text-sm text-cream-100/90">
-                    Per un percorso di degustazione, suggeriremmo <span className="font-bold text-gold-400">{calculateBottlesNeeded(guestCount)} bottiglie</span> per {guestCount} {guestCount === 1 ? 'persona' : 'persone'} (circa 2 portate a testa).
-                  </p>
+                  <p className="text-sm text-cream-100/90" dangerouslySetInnerHTML={{
+                    __html: t('customerChat:guests.bottlesSuggestion', {
+                      bottlesCount: calculateBottlesNeeded(guestCount),
+                      bottlesWord: calculateBottlesNeeded(guestCount) === 1 ? t('customerChat:guests.bottle') : t('customerChat:guests.bottles'),
+                      guestCount: guestCount,
+                      guestsWord: t('common:guest', { count: guestCount })
+                    })
+                  }} />
                 </motion.div>
               </motion.div>
             )}
@@ -1077,10 +1096,10 @@ function CustomerChat() {
                     <Wine className="w-10 h-10 text-gold-500" />
                   </div>
                   <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                    Che tipo di vino preferite?
+                    {t('customerChat:wineType.title')}
                   </h2>
                   <p className="text-cream-100/70">
-                    Seleziona la tipologia o lascia scegliere al sommelier
+                    {t('customerChat:wineType.subtitle')}
                   </p>
                 </div>
 
@@ -1124,10 +1143,10 @@ function CustomerChat() {
               >
                 <div className="text-center mb-8">
                   <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                    Budget per bottiglia
+                    {t('customerChat:budget.title')}
                   </h2>
                   <p className="text-cream-100/70">
-                    Inserisci il budget massimo o seleziona nessuna restrizione
+                    {t('customerChat:budget.subtitle')}
                   </p>
                 </div>
 
@@ -1135,7 +1154,7 @@ function CustomerChat() {
                   {/* Budget input */}
                   <div className="bg-burgundy-800/30 rounded-xl p-5 border border-burgundy-700/30">
                     <label className="block text-cream-50 font-semibold mb-3">
-                      Budget per bottiglia (€)
+                      {t('customerChat:budget.inputLabel')}
                     </label>
                     <div className="flex gap-3">
                       <div className="flex-1">
@@ -1145,7 +1164,7 @@ function CustomerChat() {
                             type="number"
                             min="0"
                             step="0.01"
-                            placeholder="Es. 25.00"
+                            placeholder={t('customerChat:budget.inputPlaceholder')}
                             value={budgetInput}
                             onChange={(e) => {
                               const value = e.target.value
@@ -1167,7 +1186,7 @@ function CustomerChat() {
                           />
                         </div>
                         <p className="text-xs text-cream-100/60 mt-2">
-                          Inserisci il budget massimo per bottiglia
+                          {t('customerChat:budget.inputHint')}
                         </p>
                       </div>
                     </div>
@@ -1187,9 +1206,9 @@ function CustomerChat() {
                   >
                     <span className="text-2xl">✨</span>
                     <div className="text-left flex-1">
-                      <div className="font-semibold text-lg">Nessuna restrizione</div>
+                      <div className="font-semibold text-lg">{t('customerChat:budget.noRestriction')}</div>
                       <div className={`text-sm mt-1 ${selectedBudget === 'nolimit' ? 'text-burgundy-700' : 'text-cream-100/60'}`}>
-                        Proponi i migliori vini disponibili
+                        {t('customerChat:budget.noRestrictionDescription')}
                       </div>
                     </div>
                     {selectedBudget === 'nolimit' && (
@@ -1211,7 +1230,7 @@ function CustomerChat() {
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-burgundy-700 text-cream-50 rounded-xl hover:bg-burgundy-600 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
-                Indietro
+                {t('common:buttons.back')}
               </button>
             )}
             <button
@@ -1222,15 +1241,15 @@ function CustomerChat() {
               {flowStep === 'intro' ? (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  Iniziamo!
+                  {t('customerChat:intro.startButton')}
                 </>
               ) : flowStep === 'budget' ? (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  Chiedi al Sommelier
+                  {t('customerChat:buttons.askSommelier')}
                 </>
               ) : (
-                'Continua'
+                t('customerChat:buttons.continue')
               )}
             </button>
           </div>
@@ -1253,7 +1272,7 @@ function CustomerChat() {
               <h1 className="font-display font-bold">
                 {venue?.name || 'Sommelier AI'}
               </h1>
-              <p className="text-xs text-cream-100/70">Il tuo sommelier personale</p>
+              <p className="text-xs text-cream-100/70">{t('customerChat:chat.personalSommelier')}</p>
             </div>
           </div>
         </div>
@@ -1264,11 +1283,11 @@ function CustomerChat() {
         <div className="max-w-2xl mx-auto flex flex-wrap gap-4">
           <span className="flex items-center gap-1">
             <Users className="w-4 h-4 text-gold-400" />
-            {guestCount} {guestCount === 1 ? 'persona' : 'persone'}
+            {guestCount} {t('common:guest', { count: guestCount })}
           </span>
           <span className="flex items-center gap-1 text-cream-100/70">
             <Wine className="w-4 h-4 text-gold-400" />
-            {selectedDishes.length} piatti selezionati
+            {selectedDishes.length} {t('customerChat:chat.dishesSelected')}
           </span>
         </div>
       </div>
@@ -1341,7 +1360,7 @@ function CustomerChat() {
                           // Show fallback message if content is empty but we have wines/journeys
                           <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-burgundy-100">
                             <p className="text-burgundy-800 leading-relaxed">
-                              Ecco le mie raccomandazioni per voi.
+                              {t('customerChat:chat.fallbackRecommendation')}
                             </p>
                           </div>
                         )
@@ -1357,7 +1376,7 @@ function CustomerChat() {
                         >
                           <p className="text-xs text-burgundy-500 font-medium uppercase tracking-wide flex items-center gap-1">
                             <Sparkles className="w-3 h-3" />
-                            I miei consigli per voi
+                            {t('customerChat:chat.recommendations')}
                           </p>
                           
                           {/* All recommended wines - show all as selectable cards (max 3) */}
@@ -1399,14 +1418,14 @@ function CustomerChat() {
                                 className="flex-1 flex items-center justify-center gap-2 px-3 md:px-4 py-2.5 md:py-3 bg-green-600 text-white rounded-lg md:rounded-xl text-sm md:text-base font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
-                                <span className="truncate">Conferma questa etichetta</span>
+                                <span className="truncate">{t('customerChat:chat.confirmWine')}</span>
                               </button>
                               <button
                                 onClick={async () => {
                                   setModalMessageId(actionMessageId)
                                   setLoadingRankings(true)
                                   setShowAllWinesModal(true)
-                                  
+
                                   // Fetch rankings from API using message_id from server
                                   try {
                                     if (rankingsMessageId) {
@@ -1436,7 +1455,7 @@ function CustomerChat() {
                                 className="flex-1 flex items-center justify-center gap-2 px-3 md:px-4 py-2.5 md:py-3 bg-gold-500 text-burgundy-900 rounded-lg md:rounded-xl text-sm md:text-base font-semibold hover:bg-gold-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <Star className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
-                                <span className="truncate">Valuta tutti i vini</span>
+                                <span className="truncate">{t('customerChat:chat.viewAllWines')}</span>
                               </button>
                             </motion.div>
                           )}
@@ -1453,7 +1472,7 @@ function CustomerChat() {
                         >
                           <p className="text-xs text-burgundy-500 font-medium uppercase tracking-wide flex items-center gap-1">
                             <Sparkles className="w-3 h-3" />
-                            I miei percorsi per voi
+                            {t('customerChat:chat.journeyRecommendations')}
                           </p>
                           
                           {displayJourneys.map((journey, journeyIdx) => (
@@ -1468,7 +1487,7 @@ function CustomerChat() {
                               <div className="flex items-start justify-between mb-3 gap-3">
                                 <div className="flex-1">
                                   <h4 className="font-display font-semibold text-burgundy-900 text-base md:text-lg break-words">
-                                    {journey.name || `Percorso ${journeyIdx + 1}`}
+                                    {journey.name || t('customerChat:chat.journeyName', { number: journeyIdx + 1 })}
                                   </h4>
                                 </div>
                                 <div className="flex gap-2 flex-shrink-0">
@@ -1480,7 +1499,7 @@ function CustomerChat() {
                                       }))}
                                       className="px-3 py-2 rounded-lg font-medium text-sm transition-colors bg-burgundy-100 text-burgundy-700 hover:bg-burgundy-200"
                                     >
-                                      Dettagli percorso
+                                      {t('customerChat:chat.journeyDetails')}
                                     </button>
                                   )}
                                   <button
@@ -1494,7 +1513,7 @@ function CustomerChat() {
                                         : 'bg-burgundy-700 text-cream-50 hover:bg-burgundy-600'
                                     }`}
                                   >
-                                    {selectedJourneyByMessage[actionMessageId] === journey.id ? 'Selezionato' : 'Seleziona questo percorso'}
+                                    {selectedJourneyByMessage[actionMessageId] === journey.id ? t('customerChat:chat.journeySelected') : t('customerChat:chat.selectJourney')}
                                   </button>
                                 </div>
                               </div>
@@ -1537,7 +1556,7 @@ function CustomerChat() {
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                               >
                                 <CheckCircle2 className="w-5 h-5" />
-                                Conferma questo percorso
+                                {t('customerChat:chat.confirmJourney')}
                               </button>
                             </motion.div>
                           )}
@@ -1582,13 +1601,13 @@ function CustomerChat() {
                 <AlertCircle className="w-4 h-4 text-white" />
               </div>
               <div className="bg-red-50 border border-red-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%]">
-                <p className="text-red-800 font-medium mb-1">Errore di connessione</p>
+                <p className="text-red-800 font-medium mb-1">{t('customerChat:chat.connectionError')}</p>
                 <p className="text-red-600 text-sm">{error}</p>
                 <button
-                  onClick={() => sendMessage(inputValue || 'Riprova')}
+                  onClick={() => sendMessage(inputValue || t('common:buttons.retry'))}
                   className="mt-2 text-sm text-red-700 underline hover:text-red-900"
                 >
-                  Riprova
+                  {t('customerChat:chat.retryError')}
                 </button>
               </div>
             </motion.div>
@@ -1607,10 +1626,10 @@ function CustomerChat() {
               >
                 <div className="text-center mb-6">
                   <h3 className="font-display text-xl font-bold text-cream-50 mb-2">
-                    Come è stata la tua esperienza?
+                    {t('customerChat:feedback.title')}
                   </h3>
                   <p className="text-sm text-cream-100/70">
-                    Il tuo feedback ci aiuta a migliorare
+                    {t('customerChat:feedback.subtitle')}
                   </p>
                 </div>
                 
@@ -1639,12 +1658,12 @@ function CustomerChat() {
                   <textarea
                     value={feedbackText}
                     onChange={(e) => setFeedbackText(e.target.value)}
-                    placeholder="Vuoi aggiungere un commento? (opzionale)"
+                    placeholder={t('customerChat:feedback.commentPlaceholder')}
                     className="w-full p-3 rounded-xl bg-burgundy-700/50 border border-burgundy-600 text-cream-50 placeholder-cream-300/50 focus:outline-none focus:ring-2 focus:ring-gold-500 resize-none"
                     rows={3}
                   />
                 </div>
-                
+
                 {/* Action Buttons */}
                 <div className="flex gap-3">
                   <button
@@ -1652,7 +1671,7 @@ function CustomerChat() {
                     disabled={submittingFeedback}
                     className="flex-1 px-4 py-3 bg-burgundy-700 text-cream-50 rounded-xl font-semibold hover:bg-burgundy-600 transition-colors disabled:opacity-50"
                   >
-                    Salta
+                    {t('customerChat:feedback.skipButton')}
                   </button>
                   <button
                     onClick={handleSubmitFeedback}
@@ -1662,12 +1681,12 @@ function CustomerChat() {
                     {submittingFeedback ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        Invio...
+                        {t('customerChat:feedback.submitting')}
                       </>
                     ) : (
                       <>
                         <Check className="w-4 h-4" />
-                        Invia Feedback
+                        {t('customerChat:feedback.submitButton')}
                       </>
                     )}
                   </button>
@@ -1713,7 +1732,7 @@ function CustomerChat() {
             {precomputeStatus === 'loading' ? (
               <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-100 text-gray-600 rounded-xl font-medium">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Preparo le opzioni migliori per te...
+                {t('customerChat:chat.preparingOptions')}
               </div>
             ) : precomputeStatus === 'error' ? (
               <button
@@ -1723,7 +1742,7 @@ function CustomerChat() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-xl font-semibold hover:bg-orange-600 transition-colors shadow-sm"
               >
                 <RefreshCw className="w-4 h-4" />
-                Riprova a caricare
+                {t('customerChat:chat.retryLoading')}
               </button>
             ) : (
               <button
@@ -1734,12 +1753,12 @@ function CustomerChat() {
                 {proceedLoading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Sto preparando i suggerimenti...
+                    {t('customerChat:chat.proceedLoading')}
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    Procedi al suggerimento
+                    {t('customerChat:chat.proceedButton')}
                   </>
                 )}
               </button>
@@ -1760,7 +1779,7 @@ function CustomerChat() {
             >
               <p className="text-burgundy-900 font-medium flex items-center gap-2">
                 <ArrowUp className="w-5 h-5 text-gold-600" />
-                Torna sulle card sopra per scegliere
+                {t('customerChat:chat.clarificationHint')}
               </p>
             </motion.div>
           </div>
@@ -1776,7 +1795,7 @@ function CustomerChat() {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Rispondi al sommelier..."
+              placeholder={t('customerChat:chat.inputPlaceholder')}
               className="input-field flex-1"
               disabled={isLoading}
             />
