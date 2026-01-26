@@ -79,8 +79,8 @@ function calculateBottlesNeeded(guestCount, coursesPerPerson = 2.0) {
 
 function CustomerChat() {
   const { venueSlug } = useParams()
-  const { t } = useTranslation()
-  const { language } = useLanguageStore()
+  const { t, i18n } = useTranslation()
+  const { language, setLanguage } = useLanguageStore()
 
   // Get translated options
   const categoryLabels = getCategoryLabels(t)
@@ -908,11 +908,53 @@ function CustomerChat() {
                   </p>
                 </motion.div>
 
+                {/* Language Selection */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.8 }}
-                  className="mt-8 flex justify-center gap-3"
+                  className="mt-8"
+                >
+                  <p className="text-cream-100/70 text-sm mb-3">
+                    {t('customerChat:intro.selectLanguage')}
+                  </p>
+                  <div className="flex justify-center gap-4">
+                    <button
+                      onClick={() => {
+                        i18n.changeLanguage('it')
+                        setLanguage('it')
+                      }}
+                      className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all ${
+                        language === 'it'
+                          ? 'bg-gold-500 text-burgundy-900 shadow-lg scale-105'
+                          : 'bg-burgundy-800/50 text-cream-50 hover:bg-burgundy-700/50'
+                      }`}
+                    >
+                      <span className="text-3xl">🇮🇹</span>
+                      <span className="font-semibold">Italiano</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        i18n.changeLanguage('en')
+                        setLanguage('en')
+                      }}
+                      className={`flex items-center gap-3 px-6 py-3 rounded-xl transition-all ${
+                        language === 'en'
+                          ? 'bg-gold-500 text-burgundy-900 shadow-lg scale-105'
+                          : 'bg-burgundy-800/50 text-cream-50 hover:bg-burgundy-700/50'
+                      }`}
+                    >
+                      <span className="text-3xl">🇬🇧</span>
+                      <span className="font-semibold">English</span>
+                    </button>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.0 }}
+                  className="mt-6 flex justify-center gap-3"
                 >
                   <span className="inline-flex items-center gap-2 px-4 py-2 bg-burgundy-800/50 rounded-full text-cream-100/70 text-sm">
                     <Sparkles className="w-4 h-4 text-gold-400" />

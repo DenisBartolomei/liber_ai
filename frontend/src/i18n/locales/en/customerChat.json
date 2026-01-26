@@ -5,7 +5,9 @@
     "description": "I am the <strong>virtual sommelier</strong> of <strong>{{venueName}}</strong>.",
     "descriptionDetails": "I will guide you in choosing the perfect wine. Let's start with a few simple questions, and then we'll proceed to the selection.",
     "startButton": "Let's get started!",
-    "poweredBy": "Powered by Liber"
+    "poweredBy": "Powered by Liber",
+    "selectLanguage": "Select language",
+    "languageHint": "You can change the language anytime before starting"
   },
   "dishes": {
     "title": "What have you ordered?",
