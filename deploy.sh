@@ -11,6 +11,7 @@ REGION="${GCP_REGION:-europe-west8}"  # Milan, Italy
 export DATABASE_URL
 export QDRANT_HOST
 export QDRANT_PORT
+export QDRANT_API_KEY
 export OPENAI_API_KEY
 export OPENAI_MODEL
 export OPENAI_FINETUNED_MODEL
@@ -48,6 +49,7 @@ cat << EOT > env.yaml
 DATABASE_URL: "${DATABASE_URL}"
 QDRANT_HOST: "${QDRANT_HOST}"
 QDRANT_PORT: "${QDRANT_PORT:-6333}"
+QDRANT_API_KEY: "${QDRANT_API_KEY}"
 OPENAI_API_KEY: "${OPENAI_API_KEY}"
 OPENAI_MODEL: "${OPENAI_MODEL}"
 OPENAI_FINETUNED_MODEL: "${OPENAI_FINETUNED_MODEL}"
@@ -134,6 +136,10 @@ echo "   Frontend: ${FRONTEND_URL}"
 echo ""
 echo "📋 Next steps:"
 echo "   1. Test the application at ${FRONTEND_URL}"
-echo "   2. Set up custom domains (optional)"
-echo "   3. Configure monitoring and logging"
-echo "   4. Set up CI/CD for automatic deployments"
+echo "   2. Test health check: curl ${BACKEND_URL}/api/health/full"
+echo "   3. Set up custom domains (optional)"
+echo "   4. Configure Cloud Monitoring alerts"
+echo "   5. Set up CI/CD for automatic deployments"
+echo ""
+echo "🔧 Optional: For distributed rate limiting across instances,"
+echo "   configure Google Cloud Memorystore (Redis) and set REDIS_URL env var"

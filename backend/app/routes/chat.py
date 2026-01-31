@@ -9,16 +9,22 @@ import hashlib
 import logging
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy.orm.attributes import flag_modified
-from app import db
+from app import db, limiter
 from app.models import Venue, Session, Message, WineProposal, Product, AccessToken
 from app.services.ai_agent import AIAgentService
 from app.services.communication_model import CommunicationModelService
 from app.services.conversation_manager import ConversationManager
+from app.services.resilience import ServiceUnavailableError
 from app.utils.ip_verification import get_client_ip, verify_wifi_access
 
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
+
+# Rate limits for chat endpoints (more restrictive than global)
+# These protect against abuse and control OpenAI API costs
+CHAT_MESSAGE_LIMIT = "15 per minute"  # Max 15 messages per minute per IP
+CHAT_SESSION_LIMIT = "10 per minute"  # Max 10 new sessions per minute per IP
 
 
 def enrich_wines_with_db_data(wines):
@@ -295,11 +301,12 @@ def _compute_filters_hash(venue_id: int, context: dict) -> str:
 
 
 @chat_bp.route('/sessions', methods=['POST'])
+@limiter.limit(CHAT_SESSION_LIMIT)
 def create_session():
     """
     Create a new chat session for a customer (B2C).
     Requires a valid access token (one-time use).
-    
+
     Expected JSON:
     {
         "venue_slug": "ristorante-da-mario-abc123",
@@ -399,6 +406,7 @@ def create_session():
 
 
 @chat_bp.route('/precompute-rankings', methods=['POST'])
+@limiter.limit(CHAT_MESSAGE_LIMIT)
 def precompute_rankings():
     """
     Precompute wine rankings SYNCHRONOUSLY for a session.
@@ -548,6 +556,7 @@ def precompute_rankings_status():
 
 
 @chat_bp.route('/proceed-recommendations', methods=['POST'])
+@limiter.limit(CHAT_MESSAGE_LIMIT)
 def proceed_recommendations():
     """
     Proceed to recommendations using precomputed rankings if available.
@@ -859,10 +868,11 @@ def confirm_wines():
 
 
 @chat_bp.route('/messages', methods=['POST'])
+@limiter.limit(CHAT_MESSAGE_LIMIT)
 def send_message():
     """
     Send a message in a chat session and get AI response.
-    
+
     Expected JSON:
     {
         "session_token": "abc123...",
