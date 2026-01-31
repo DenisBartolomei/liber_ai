@@ -8,7 +8,7 @@ import os
 from werkzeug.utils import secure_filename
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app import db
+from app import db, limiter
 from app.models import Product, User, Venue
 from app.services.vector_search import VectorSearchService
 from app.services.wine_parser import WineParserService
@@ -17,6 +17,9 @@ from app.services.wine_description_generator import WineDescriptionGenerator
 logger = logging.getLogger(__name__)
 
 products_bp = Blueprint('products', __name__)
+
+# Rate limits for AI-intensive operations (wine parsing and description generation)
+AI_OPERATION_LIMIT = "5 per minute"  # Max 5 AI operations per minute per IP
 
 
 # ===========================================
@@ -117,6 +120,7 @@ def sync_vectors(venue_id):
 
 @products_bp.route('/venue/<int:venue_id>/parse', methods=['POST'])
 @jwt_required()
+@limiter.limit(AI_OPERATION_LIMIT)
 def parse_wine_list(venue_id):
     """Parse wine list text and extract structured wine data using AI."""
     current_user_id = get_jwt_identity()
@@ -147,6 +151,7 @@ def parse_wine_list(venue_id):
 
 @products_bp.route('/venue/<int:venue_id>/parse-images', methods=['POST'])
 @jwt_required()
+@limiter.limit(AI_OPERATION_LIMIT)
 def parse_wine_images(venue_id):
     """Parse wine list from images using GPT-4 Vision."""
     current_user_id = get_jwt_identity()
@@ -421,6 +426,7 @@ def parse_wine_csv():
 
 @products_bp.route('/venue/<int:venue_id>/generate-descriptions', methods=['POST'])
 @jwt_required()
+@limiter.limit(AI_OPERATION_LIMIT)
 def generate_wine_descriptions(venue_id):
     """
     Generate professional wine descriptions using fine-tuned GPT model.
