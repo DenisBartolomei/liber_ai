@@ -25,6 +25,7 @@ import { ThinkingMessages } from '../components/ui/LoadingSpinner'
 import WineCard from '../components/chat/WineCard'
 import AllWinesModal from '../components/chat/AllWinesModal'
 import JourneyDetailsModal from '../components/chat/JourneyDetailsModal'
+import DishSelector from '../components/chat/DishSelector'
 import Logo from '../components/ui/Logo'
 import LanguageSwitcher from '../components/ui/LanguageSwitcher'
 import { useLanguageStore } from '../stores/languageStore'
@@ -964,95 +965,33 @@ function CustomerChat() {
               </motion.div>
             )}
 
-            {/* Step 1: Dish Selection */}
+            {/* Step 1: Dish Selection - Mobile Optimized */}
             {flowStep === 'dishes' && (
               <motion.div
                 key="dishes"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
+                className="flex flex-col h-[65vh] md:h-[60vh]"
               >
-                <h2 className="font-display text-2xl font-bold text-cream-50 mb-2">
-                  {t('customerChat:dishes.title')}
-                </h2>
-                <p className="text-cream-100/70 mb-6">
-                  {t('customerChat:dishes.subtitle')}
-                </p>
-
-                {/* Menu categories */}
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
-                  {Object.entries(categoryLabels).map(([catKey, catLabel]) => {
-                    const dishes = groupedMenu[catKey]
-                    if (!dishes || dishes.length === 0) return null
-                    
-                    return (
-                      <div key={catKey} className="bg-burgundy-800/50 rounded-xl overflow-hidden">
-                        <button
-                          onClick={() => toggleCategory(catKey)}
-                          className="w-full flex items-center justify-between p-4 text-left"
-                        >
-                          <span className="font-display font-semibold text-cream-50">
-                            {catLabel} 
-                            <span className="text-cream-100/50 font-normal ml-2">
-                              ({dishes.length})
-                            </span>
-                          </span>
-                          <ChevronDown 
-                            className={`w-5 h-5 text-gold-500 transition-transform ${
-                              expandedCategories[catKey] ? 'rotate-180' : ''
-                            }`} 
-                          />
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedCategories[catKey] && (
-                            <motion.div
-                              initial={{ height: 0 }}
-                              animate={{ height: 'auto' }}
-                              exit={{ height: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="px-4 pb-4 space-y-2">
-                                {dishes.map(dish => {
-                                  const isSelected = selectedDishes.find(d => d.id === dish.id)
-                                  return (
-                                    <button
-                                      key={dish.id}
-                                      onClick={() => toggleDish(dish)}
-                                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                                        isSelected
-                                          ? 'bg-gold-500 text-burgundy-900'
-                                          : 'bg-burgundy-700/50 text-cream-50 hover:bg-burgundy-700'
-                                      }`}
-                                    >
-                                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
-                                        isSelected 
-                                          ? 'border-burgundy-900 bg-burgundy-900' 
-                                          : 'border-cream-100/30'
-                                      }`}>
-                                        {isSelected && <Check className="w-3 h-3 text-gold-500" />}
-                                      </div>
-                                      <span className="flex-1 text-left font-medium">{dish.name}</span>
-                                      {dish.price && (
-                                        <span className={isSelected ? 'text-burgundy-700' : 'text-gold-400'}>
-                                          €{dish.price}
-                                        </span>
-                                      )}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )
-                  })}
+                <div className="mb-4">
+                  <h2 className="font-display text-2xl font-bold text-cream-50 mb-1">
+                    {t('customerChat:dishes.title')}
+                  </h2>
+                  <p className="text-cream-100/70 text-sm">
+                    {t('customerChat:dishes.subtitle')}
+                  </p>
                 </div>
 
-                {/* Empty menu state */}
-                {menuItems.length === 0 && (
-                  <div className="text-center py-12">
+                {menuItems.length > 0 ? (
+                  <DishSelector
+                    menuItems={menuItems}
+                    selectedDishes={selectedDishes}
+                    onToggleDish={toggleDish}
+                    categoryLabels={categoryLabels}
+                  />
+                ) : (
+                  <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
                     <Wine className="w-12 h-12 text-burgundy-600 mx-auto mb-4" />
                     <p className="text-cream-100/70">
                       {t('customerChat:dishes.emptyMenu')}

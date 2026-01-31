@@ -15,6 +15,11 @@
     "hint": "You can select multiple dishes",
     "noSelection": "Select at least one dish to continue",
     "emptyMenu": "The menu has not been loaded yet.",
+    "emptyCategory": "No dishes in this category",
+    "selected": "{{count}} dishes selected",
+    "selected_one": "{{count}} dish selected",
+    "categoriesLabel": "categories",
+    "totalDishes": "total dishes",
     "categories": {
       "antipasto": "Appetizers",
       "primo": "First Courses",
