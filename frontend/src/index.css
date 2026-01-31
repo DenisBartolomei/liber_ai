@@ -35,6 +35,23 @@
   }
 }
 
+/* Utility classes */
+@layer utilities {
+  /* Hide scrollbar for mobile-friendly horizontal scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari and Opera */
+  }
+
+  /* Touch-friendly scroll */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* Component styles */
 @layer components {
   .btn-primary {

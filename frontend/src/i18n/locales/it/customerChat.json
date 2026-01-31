@@ -15,6 +15,11 @@
     "hint": "Puoi selezionare più piatti",
     "noSelection": "Seleziona almeno un piatto per continuare",
     "emptyMenu": "Il menu non è ancora stato caricato.",
+    "emptyCategory": "Nessun piatto in questa categoria",
+    "selected": "{{count}} piatti selezionati",
+    "selected_one": "{{count}} piatto selezionato",
+    "categoriesLabel": "categorie",
+    "totalDishes": "piatti totali",
     "categories": {
       "antipasto": "Antipasti",
       "primo": "Primi Piatti",
