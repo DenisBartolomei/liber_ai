@@ -9,19 +9,30 @@ class WineProposal(db.Model):
     """
     WineProposal entity representing a wine proposed by AI in a conversation.
     Tracks every wine recommendation with full analytics data.
-    
+
     IMPORTANT:
     - A wine is SELECTED only when customer clicks the card and confirms
-    - In MULTI-LABEL (journey) case, when customer selects a journey, ALL wines 
+    - In MULTI-LABEL (journey) case, when customer selects a journey, ALL wines
       in the journey must be marked as SELECTED
     - Wines PROPOSED but NOT SELECTED go into "Vini proposti ma non selezionati" metric
+
+    MIGRATION NOTE:
+    - product_id: Legacy FK to products table (will be deprecated)
+    - venue_wine_id: New FK to venue_wines table
+    During migration, both may exist. After full migration, product_id will be removed.
     """
     __tablename__ = 'wine_proposals'
-    
+
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('sessions.id', ondelete='CASCADE'), nullable=False, index=True)
     message_id = db.Column(db.Integer, db.ForeignKey('messages.id', ondelete='SET NULL'))
-    product_id = db.Column(db.Integer, db.ForeignKey('products.id', ondelete='CASCADE'), nullable=False, index=True)
+
+    # Legacy FK - will be deprecated after full migration
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id', ondelete='CASCADE'), nullable=True, index=True)
+
+    # New FK - preferred after migration
+    venue_wine_id = db.Column(db.Integer, db.ForeignKey('venue_wines.id', ondelete='CASCADE'), nullable=True, index=True)
+
     proposal_group_id = db.Column(db.String(100), index=True)  # UUID per raggruppare proposte dello stesso batch
     proposal_rank = db.Column(db.Integer, nullable=False)  # 1-based rank nella lista completa del messaggio
     price = db.Column(db.Numeric(10, 2), nullable=False)  # Prezzo al momento della proposta
@@ -32,22 +43,25 @@ class WineProposal(db.Model):
     is_selected = db.Column(db.Boolean, default=False, index=True)  # TRUE solo quando cliente clicca e conferma
     selected_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-    
+
     # Relationships
     session = db.relationship('Session', backref='wine_proposals')
-    product = db.relationship('Product', backref='proposals')
+    product = db.relationship('Product', backref='proposals', foreign_keys=[product_id])  # Legacy
+    venue_wine = db.relationship('VenueWine', back_populates='proposals', foreign_keys=[venue_wine_id])  # New
     message = db.relationship('Message', backref='wine_proposals')
     
     def __repr__(self):
-        return f'<WineProposal session={self.session_id} product={self.product_id} selected={self.is_selected}>'
-    
+        wine_ref = self.venue_wine_id or self.product_id
+        return f'<WineProposal session={self.session_id} wine={wine_ref} selected={self.is_selected}>'
+
     def to_dict(self):
         """Convert wine proposal to dictionary for API responses"""
         return {
             'id': self.id,
             'session_id': self.session_id,
             'message_id': self.message_id,
-            'product_id': self.product_id,
+            'product_id': self.product_id,  # Legacy
+            'venue_wine_id': self.venue_wine_id,  # New
             'proposal_group_id': self.proposal_group_id,
             'proposal_rank': self.proposal_rank,
             'price': float(self.price) if self.price else None,
@@ -59,6 +73,10 @@ class WineProposal(db.Model):
             'selected_at': self.selected_at.isoformat() if self.selected_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+    def get_wine_id(self):
+        """Get the wine reference ID (prefers venue_wine_id, falls back to product_id)"""
+        return self.venue_wine_id or self.product_id
     
     def mark_as_selected(self):
         """Mark this proposal as selected by the customer"""
@@ -68,7 +86,8 @@ class WineProposal(db.Model):
 
 # Indexes for better query performance
 db.Index('idx_wine_proposals_session', WineProposal.session_id)
-db.Index('idx_wine_proposals_product', WineProposal.product_id)
+db.Index('idx_wine_proposals_product', WineProposal.product_id)  # Legacy
+db.Index('idx_wine_proposals_venue_wine', WineProposal.venue_wine_id)  # New
 db.Index('idx_wine_proposals_group', WineProposal.proposal_group_id)
 db.Index('idx_wine_proposals_rank', WineProposal.proposal_rank)
 db.Index('idx_wine_proposals_selected', WineProposal.is_selected)

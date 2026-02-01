@@ -9,6 +9,13 @@ from sqlalchemy.sql import text
 from app import db
 from app.models import Session, WineProposal, Product, Venue, MenuItem
 
+# NOTE: This service uses Product for wine queries.
+# During migration to wines/venue_wines, queries will continue to work
+# as long as products table exists and WineProposal.product_id is populated.
+# After full migration, update joins to use:
+# - VenueWine.id == WineProposal.venue_wine_id
+# - Wine for master wine data
+
 
 class AnalyticsService:
     """
@@ -154,8 +161,15 @@ class AnalyticsService:
             Session.id.in_(db.session.query(sessions_with_selection_ids_subq.c.id))
         ).scalar() or 0
         
-        # Total products in venue's wine list
-        total_products = Product.query.filter_by(venue_id=venue_id).count()
+        # Total products in venue's wine list (try new model, fallback to legacy)
+        try:
+            from app.models import VenueWine
+            total_products = VenueWine.query.filter_by(venue_id=venue_id).count()
+            if total_products == 0:
+                # Fallback to legacy if no venue_wines yet
+                total_products = Product.query.filter_by(venue_id=venue_id).count()
+        except Exception:
+            total_products = Product.query.filter_by(venue_id=venue_id).count()
         
         return {
             'total_conversations': total_conversations,

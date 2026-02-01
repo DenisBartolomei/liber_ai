@@ -62,6 +62,7 @@ class Venue(db.Model):
     
     # Relationships
     products = db.relationship('Product', backref='venue', lazy='dynamic', cascade='all, delete-orphan')
+    venue_wines = db.relationship('VenueWine', back_populates='venue', lazy='dynamic', cascade='all, delete-orphan')
     users = db.relationship('User', backref='venue', lazy='dynamic', cascade='all, delete-orphan')
     sessions = db.relationship('Session', backref='venue', lazy='dynamic', cascade='all, delete-orphan')
     
@@ -101,7 +102,8 @@ class Venue(db.Model):
         
         if include_stats:
             data['stats'] = {
-                'total_products': self.products.count(),
+                'total_products': self.products.count(),  # Legacy
+                'total_wines': self.venue_wines.count(),  # New
                 'total_sessions': self.sessions.count(),
                 'total_users': self.users.count()
             }
@@ -129,47 +131,62 @@ class Venue(db.Model):
         # Ensure all are integers and filter out invalid values
         return [int(wid) for wid in featured if isinstance(wid, (int, str)) and str(wid).isdigit()][:2]
     
-    def set_featured_wines(self, product_ids):
+    def set_featured_wines(self, wine_ids):
         """
         Set featured wines in preferences.
-        Validates that products exist, belong to venue, and are available.
-        
+        Validates that wines exist, belong to venue, and are available.
+
         Args:
-            product_ids: List of product IDs (max 2)
-            
+            wine_ids: List of venue_wine IDs (max 2)
+
         Returns:
             Tuple (success: bool, message: str)
         """
-        if not isinstance(product_ids, list):
+        if not isinstance(wine_ids, list):
             return False, "featured_wines deve essere una lista"
-        
-        if len(product_ids) > 2:
+
+        if len(wine_ids) > 2:
             return False, "Massimo 2 vini possono essere selezionati come vini in evidenza"
-        
-        # Validate product IDs
-        from app.models import Product
-        for product_id in product_ids:
-            if not isinstance(product_id, int):
+
+        # Try new model first, fallback to legacy
+        try:
+            from app.models.venue_wine import VenueWine
+            use_new_model = True
+        except ImportError:
+            from app.models import Product
+            use_new_model = False
+
+        for wine_id in wine_ids:
+            if not isinstance(wine_id, int):
                 try:
-                    product_id = int(product_id)
+                    wine_id = int(wine_id)
                 except (ValueError, TypeError):
-                    return False, f"ID prodotto non valido: {product_id}"
-            
-            product = Product.query.get(product_id)
-            if not product:
-                return False, f"Prodotto con ID {product_id} non trovato"
-            
-            if product.venue_id != self.id:
-                return False, f"Prodotto con ID {product_id} non appartiene a questo locale"
-            
-            if not product.is_available:
-                return False, f"Prodotto con ID {product_id} non è disponibile"
-        
+                    return False, f"ID vino non valido: {wine_id}"
+
+            if use_new_model:
+                venue_wine = VenueWine.query.get(wine_id)
+                if not venue_wine:
+                    return False, f"Vino con ID {wine_id} non trovato"
+                if venue_wine.venue_id != self.id:
+                    return False, f"Vino con ID {wine_id} non appartiene a questo locale"
+                if not venue_wine.is_available:
+                    return False, f"Vino con ID {wine_id} non è disponibile"
+            else:
+                # Legacy fallback
+                from app.models import Product
+                product = Product.query.get(wine_id)
+                if not product:
+                    return False, f"Prodotto con ID {wine_id} non trovato"
+                if product.venue_id != self.id:
+                    return False, f"Prodotto con ID {wine_id} non appartiene a questo locale"
+                if not product.is_available:
+                    return False, f"Prodotto con ID {wine_id} non è disponibile"
+
         # Update preferences
         if not self.preferences or not isinstance(self.preferences, dict):
             self.preferences = {}
-        
-        self.preferences['featured_wines'] = product_ids
+
+        self.preferences['featured_wines'] = wine_ids
         return True, "Vini in evidenza aggiornati con successo"
     
     def get_annual_conversation_count(self):
