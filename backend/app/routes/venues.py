@@ -107,11 +107,11 @@ def update_venue(venue_id):
     
     # Update allowed fields
     updatable_fields = [
-        'name', 'description', 'cuisine_type', 'menu_style', 
+        'name', 'description', 'cuisine_type', 'menu_style',
         'preferences', 'target_audience', 'logo_url', 'primary_color',
         'welcome_message', 'sommelier_style', 'is_onboarded',
-        'wifi_ip_address', 'wifi_ip_range', 'wifi_verification_enabled',
-        'menu_link_enabled', 'menu_link', 'wine_list_link_enabled', 'wine_list_link'
+        'menu_link_enabled', 'menu_link', 'wine_list_link_enabled', 'wine_list_link',
+        'session_duration_minutes', 'session_max_requests'  # Session rate limiting config
     ]
     
     changes = {}

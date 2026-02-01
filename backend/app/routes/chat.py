@@ -15,11 +15,39 @@ from app.services.ai_agent import AIAgentService
 from app.services.communication_model import CommunicationModelService
 from app.services.conversation_manager import ConversationManager
 from app.services.resilience import ServiceUnavailableError
-from app.utils.ip_verification import get_client_ip, verify_wifi_access
 
 logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
+
+
+def check_session_limits(session, client_ip=None):
+    """
+    Check session rate limits and IP tracking.
+    Returns tuple (is_ok: bool, error_response: tuple or None)
+
+    If is_ok is False, error_response contains (jsonify_response, status_code)
+    """
+    # Check if session can make requests
+    can_request, message = session.can_make_request()
+    if not can_request:
+        error_code = 'SESSION_EXPIRED' if 'scaduta' in message else 'REQUEST_LIMIT_REACHED'
+        return False, (jsonify({
+            'message': message,
+            'error_code': error_code,
+            'requests_remaining': 0
+        }), 429 if 'domande' in message else 403)
+
+    # Track IP if provided
+    if client_ip:
+        is_suspicious, ip_message = session.track_ip(client_ip)
+        if is_suspicious:
+            return False, (jsonify({
+                'message': ip_message,
+                'error_code': 'SESSION_INVALID'
+            }), 403)
+
+    return True, None
 
 # Rate limits for chat endpoints (more restrictive than global)
 # These protect against abuse and control OpenAI API costs
@@ -101,19 +129,7 @@ def create_start_token():
     
     if not venue:
         return jsonify({'message': 'Locale non trovato'}), 404
-    
-    # Verify WiFi access if enabled
-    client_ip = get_client_ip(request)
-    is_allowed, wifi_message = verify_wifi_access(venue, client_ip)
-    
-    if not is_allowed:
-        logger.warning(f"WiFi verification failed for venue {venue.id}: {wifi_message} (IP: {client_ip})")
-        return jsonify({
-            'message': wifi_message,
-            'error_code': 'WIFI_VERIFICATION_FAILED',
-            'requires_wifi': True
-        }), 403
-    
+
     # Check annual conversation limit (informational, doesn't block token creation)
     can_create, limit_message = venue.can_create_conversation()
     if not can_create:
@@ -126,7 +142,7 @@ def create_start_token():
         expires_in_minutes=10
     )
     
-    logger.info(f"Created start token {access_token.token[:8]}... for venue {venue.id} (IP: {client_ip})")
+    logger.info(f"Created start token {access_token.token[:8]}... for venue {venue.id}")
     
     return jsonify({
         'access_token': access_token.token,
@@ -374,19 +390,30 @@ def create_session():
     # ============================================
     # CREATE SESSION
     # ============================================
+    client_ip = request.remote_addr
     conversation_manager = ConversationManager()
     session = conversation_manager.create_session(
         venue_id=venue.id,
         mode='b2c',
         device_type=request.headers.get('X-Device-Type'),
         user_agent=request.headers.get('User-Agent'),
-        ip_address=request.remote_addr,
+        ip_address=client_ip,
         context={
             'access_token_id': access_token.id,  # Track which token was used
             'language': language  # Store user's language preference
         }
     )
-    
+
+    # ============================================
+    # SETUP RATE LIMITING (anti-abuse)
+    # ============================================
+    # Use venue-specific settings or defaults
+    duration_minutes = venue.session_duration_minutes or 45
+    max_requests = venue.session_max_requests or 15
+    session.setup_rate_limiting(duration_minutes=duration_minutes, max_requests=max_requests)
+    session.track_ip(client_ip)
+    db.session.commit()
+
     # Mark token as used (one-time use)
     access_token.mark_as_used(session.id)
     
@@ -401,7 +428,12 @@ def create_session():
             'name': venue.name,
             'logo_url': venue.logo_url
         },
-        'welcome_message': welcome_message
+        'welcome_message': welcome_message,
+        'session_limits': {
+            'expires_at': session.expires_at.isoformat() if session.expires_at else None,
+            'max_requests': session.max_requests,
+            'duration_minutes': duration_minutes
+        }
     }), 201
 
 
@@ -426,6 +458,11 @@ def precompute_rankings():
 
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
+
+    # Check rate limits (B2C sessions only)
+    is_ok, error_response = check_session_limits(session, request.remote_addr)
+    if not is_ok:
+        return error_response
 
     venue = Venue.query.get(session.venue_id)
     if not venue:
@@ -501,8 +538,10 @@ def precompute_rankings():
             'precompute_latency_ms': latency_ms
         }
         session.context = context
+        # Increment request count (AI was called)
+        session.increment_request_count()
         db.session.commit()
-        
+
         logger.info(f"Precompute: saved to context, latency={latency_ms}ms")
 
         return jsonify({
@@ -510,7 +549,8 @@ def precompute_rankings():
             'filters_hash': filters_hash,
             'wines_count': wines_count,
             'journeys_count': journeys_count,
-            'latency_ms': latency_ms
+            'latency_ms': latency_ms,
+            'requests_remaining': session.get_requests_remaining()
         }), 200
         
     except Exception as e:
@@ -581,6 +621,11 @@ def proceed_recommendations():
         if session.status != 'active':
             return jsonify({'message': 'Sessione terminata'}), 400
 
+        # Check rate limits (B2C sessions only)
+        is_ok, error_response = check_session_limits(session, request.remote_addr)
+        if not is_ok:
+            return error_response
+
         venue = Venue.query.get(session.venue_id)
         if not venue:
             return jsonify({'message': 'Locale non trovato'}), 404
@@ -645,6 +690,8 @@ def proceed_recommendations():
                 'journey_pref': journey_pref
             }
             session.context = context
+            # Increment request count (AI was called on-demand)
+            session.increment_request_count()
             logger.info(f"Proceed: computed and saved ranking_json to context (wines={len(wine_selection.get('wines', []))})")
 
         # wine_selection, filtered_wines_snapshot, gathered_info, journey_pref are now set from one of the above branches
@@ -909,7 +956,12 @@ def send_message():
     
     if session.status != 'active':
         return jsonify({'message': 'Sessione terminata'}), 400
-    
+
+    # Check rate limits (B2C sessions only)
+    is_ok, error_response = check_session_limits(session, request.remote_addr)
+    if not is_ok:
+        return error_response
+
     # ============================================
     # CRITICAL: First read clarification mode flags from session BEFORE any merge
     # These flags are set by /proceed-recommendations and MUST be preserved
@@ -1078,10 +1130,11 @@ def send_message():
                 session.context = current_context
                 logging.info(f"Saved wines_proposed=True and {len(filtered_wines)} filtered wines in session context")
         
-        # Update session activity
+        # Update session activity and increment request count
         session.update_activity()
+        session.increment_request_count()
         db.session.commit()
-        
+
         return jsonify({
             'message': message_content,
             'message_id': assistant_message.id,  # Include message ID for fetching rankings
@@ -1091,7 +1144,8 @@ def send_message():
             'journeys': response.get('journeys', []),
             'suggestions': response.get('suggestions', []),
             'mode': response.get('mode', 'single'),
-            'metadata': response.get('metadata', {})
+            'metadata': response.get('metadata', {}),
+            'requests_remaining': session.get_requests_remaining()
         }), 200
         
     except ValueError as e:

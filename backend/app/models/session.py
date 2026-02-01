@@ -1,7 +1,7 @@
 """
 Session Model - Represents a chat session
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 from app import db
 
@@ -42,8 +42,14 @@ class Session(db.Model):
     # Session metadata
     device_type = db.Column(db.String(50))  # mobile, tablet, desktop
     user_agent = db.Column(db.String(500))
-    ip_address = db.Column(db.String(45))
-    
+    ip_address = db.Column(db.String(45))  # Original IP at session creation
+
+    # Rate limiting for B2C sessions (anti-abuse)
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)  # Session expiration time
+    max_requests = db.Column(db.Integer, default=15)  # Max AI requests allowed
+    request_count = db.Column(db.Integer, default=0)  # AI requests made (separate from message_count)
+    ip_addresses = db.Column(db.JSON, default=list)  # List of IPs that used this session
+
     # Analytics
     message_count = db.Column(db.Integer, default=0)
     products_recommended = db.Column(db.JSON)  # List of product IDs recommended
@@ -263,7 +269,111 @@ class Session(db.Model):
         if 'guest_count' not in self.context:
             # Default to 2 if not provided
             self.context['guest_count'] = 2
-    
+
+    # ============================================
+    # RATE LIMITING METHODS (anti-abuse for B2C)
+    # ============================================
+
+    def is_expired(self):
+        """
+        Check if session has expired.
+        Returns False for B2B sessions (no expiration).
+        """
+        if self.mode != 'b2c':
+            return False
+        if self.expires_at is None:
+            return False
+        return datetime.utcnow() > self.expires_at
+
+    def get_expiration_status(self):
+        """
+        Get human-readable expiration status.
+        Returns tuple (is_expired: bool, message: str, minutes_remaining: int or None)
+        """
+        if self.mode != 'b2c':
+            return False, "Sessione B2B senza scadenza", None
+
+        if self.expires_at is None:
+            return False, "Nessuna scadenza impostata", None
+
+        now = datetime.utcnow()
+        if now > self.expires_at:
+            return True, "La tua sessione è scaduta. Scansiona nuovamente il QR code per iniziare una nuova conversazione.", 0
+
+        remaining = self.expires_at - now
+        minutes = int(remaining.total_seconds() / 60)
+        return False, f"{minutes} minuti rimanenti", minutes
+
+    def can_make_request(self):
+        """
+        Check if session can make another AI request.
+        Returns tuple (can_request: bool, message: str)
+        """
+        # B2B sessions have no limits
+        if self.mode != 'b2c':
+            return True, "OK"
+
+        # Check expiration
+        if self.is_expired():
+            return False, "La tua sessione è scaduta. Scansiona nuovamente il QR code per iniziare una nuova conversazione."
+
+        # Check session status
+        if self.status != 'active':
+            return False, "Questa sessione non è più attiva."
+
+        # Check request limit
+        max_req = self.max_requests or 15
+        current = self.request_count or 0
+        if current >= max_req:
+            return False, "Hai già fatto parecchie domande 🍷 Chiedi al nostro staff per continuare!"
+
+        return True, "OK"
+
+    def increment_request_count(self):
+        """Increment the AI request counter (separate from message_count)"""
+        self.request_count = (self.request_count or 0) + 1
+
+    def get_requests_remaining(self):
+        """Get number of AI requests remaining"""
+        max_req = self.max_requests or 15
+        current = self.request_count or 0
+        return max(0, max_req - current)
+
+    def track_ip(self, ip_address):
+        """
+        Track an IP address used for this session.
+        Returns tuple (is_suspicious: bool, message: str)
+
+        Suspicious activity is detected when:
+        - More than 3 different IPs use the same session
+        """
+        if not ip_address:
+            return False, "OK"
+
+        # Initialize IP list if needed
+        if self.ip_addresses is None:
+            self.ip_addresses = []
+
+        # Add IP if not already tracked
+        if ip_address not in self.ip_addresses:
+            self.ip_addresses = self.ip_addresses + [ip_address]
+
+        # Check for suspicious activity (link sharing)
+        if len(self.ip_addresses) > 3:
+            return True, "Questa sessione non è più disponibile. Scansiona il QR code al tavolo per iniziare."
+
+        return False, "OK"
+
+    def setup_rate_limiting(self, duration_minutes=45, max_requests=15):
+        """
+        Configure rate limiting for this session.
+        Called when creating a B2C session.
+        """
+        self.expires_at = datetime.utcnow() + timedelta(minutes=duration_minutes)
+        self.max_requests = max_requests
+        self.request_count = 0
+        self.ip_addresses = []
+
     @property
     def duration_minutes(self):
         """Calculate session duration in minutes"""

@@ -17,7 +17,6 @@ import {
   Wine,
   X,
   Edit3,
-  Wifi,
   ExternalLink,
   Menu
 } from 'lucide-react'
@@ -68,12 +67,7 @@ function DashboardSettings() {
   const [products, setProducts] = useState([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [selectedFeaturedWines, setSelectedFeaturedWines] = useState([])
-  
-  // WiFi verification state
-  const [wifiVerificationEnabled, setWifiVerificationEnabled] = useState(false)
-  const [wifiIpAddress, setWifiIpAddress] = useState('')
-  const [wifiIpRange, setWifiIpRange] = useState('')
-  
+
   // Digital menu and wine list links state
   const [menuLinkEnabled, setMenuLinkEnabled] = useState(false)
   const [menuLink, setMenuLink] = useState('')
@@ -92,10 +86,6 @@ function DashboardSettings() {
         name: venue.name || '',
         description: venue.description || ''
       })
-      // Sync WiFi settings
-      setWifiVerificationEnabled(venue.wifi_verification_enabled || false)
-      setWifiIpAddress(venue.wifi_ip_address || '')
-      setWifiIpRange(venue.wifi_ip_range || '')
       // Sync digital menu and wine list links
       setMenuLinkEnabled(venue.menu_link_enabled || false)
       setMenuLink(venue.menu_link || '')
@@ -246,21 +236,12 @@ function DashboardSettings() {
       toast.error('Errore: venue non trovato')
       return
     }
-    
-    // Validate WiFi settings
-    if (wifiVerificationEnabled && !wifiIpAddress && !wifiIpRange) {
-      toast.error('Inserisci almeno un IP o un range IP quando la verifica WiFi è abilitata')
-      return
-    }
-    
+
     setSaving(true)
     try {
       const updateData = {
         ...formData,
         featured_wines: selectedFeaturedWines,
-        wifi_verification_enabled: wifiVerificationEnabled,
-        wifi_ip_address: wifiIpAddress || null,
-        wifi_ip_range: wifiIpRange || null,
         menu_link_enabled: menuLinkEnabled,
         menu_link: menuLinkEnabled ? (menuLink || null) : null,
         wine_list_link_enabled: wineListLinkEnabled,
@@ -770,129 +751,6 @@ function DashboardSettings() {
               rows={3}
             />
           </div>
-        </div>
-      </motion.div>
-
-      {/* WiFi Verification Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.18 }}
-        className="card"
-      >
-        <div className="flex items-start gap-3 mb-6">
-          <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-            <Wifi className="w-5 h-5 text-purple-600" />
-          </div>
-          <div>
-            <h2 className="font-display text-lg font-semibold text-burgundy-900">
-              Verifica WiFi
-            </h2>
-            <p className="text-sm text-burgundy-600">
-              Richiedi che i clienti siano connessi al WiFi del locale per accedere
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {/* Enable/Disable Toggle */}
-          <div className="flex items-center gap-3 p-4 bg-cream-50 rounded-xl border border-burgundy-200">
-            <input
-              type="checkbox"
-              id="wifi_verification_enabled"
-              checked={wifiVerificationEnabled}
-              onChange={(e) => setWifiVerificationEnabled(e.target.checked)}
-              className="w-5 h-5 text-gold-600 rounded focus:ring-gold-500 cursor-pointer"
-            />
-            <label htmlFor="wifi_verification_enabled" className="flex-1 cursor-pointer">
-              <div className="font-medium text-burgundy-900">
-                Richiedi connessione al WiFi del locale per accedere tramite QR code
-              </div>
-              <div className="text-sm text-burgundy-600 mt-1">
-                Quando abilitato, solo gli utenti connessi al WiFi del locale potranno accedere
-              </div>
-            </label>
-          </div>
-
-          {/* WiFi Configuration Fields */}
-          {wifiVerificationEnabled && (
-            <div className="space-y-4 bg-burgundy-50/50 p-6 rounded-xl border border-burgundy-200">
-              <div>
-                <label className="block text-sm font-medium text-burgundy-700 mb-2">
-                  IP pubblico del WiFi (opzionale)
-                </label>
-                <input
-                  type="text"
-                  value={wifiIpAddress}
-                  onChange={(e) => setWifiIpAddress(e.target.value)}
-                  placeholder="Es. 192.168.1.1 o 2001:0db8::1"
-                  className="input-field"
-                />
-                <p className="text-xs text-burgundy-600 mt-1">
-                  IP pubblico del router WiFi del locale (IPv4 o IPv6)
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-burgundy-700 mb-2">
-                  Range IP o IP multipli (opzionale)
-                </label>
-                <input
-                  type="text"
-                  value={wifiIpRange}
-                  onChange={(e) => setWifiIpRange(e.target.value)}
-                  placeholder="Es. 192.168.1.0/24 oppure 192.168.1.1,192.168.1.2"
-                  className="input-field"
-                />
-                <p className="text-xs text-burgundy-600 mt-1">
-                  Range in notazione CIDR (es. 192.168.1.0/24) o IP separati da virgola
-                </p>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-900 mb-2">
-                      Come trovare l'IP pubblico del WiFi:
-                    </p>
-                    <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                      <li>Connettiti al WiFi del locale</li>
-                      <li>
-                        Vai su{' '}
-                        <a
-                          href="https://whatismyipaddress.com"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
-                        >
-                          whatismyipaddress.com
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </li>
-                      <li>Copia l'IP pubblico mostrato</li>
-                      <li>Inseriscilo nel campo sopra</li>
-                    </ol>
-                    <p className="text-xs text-blue-700 mt-2">
-                      <strong>Nota:</strong> Se il locale ha più router/access point, inserisci tutti gli IP separati da virgola o usa un range CIDR.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Validation Warning */}
-              {wifiVerificationEnabled && !wifiIpAddress && !wifiIpRange && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-sm text-yellow-800">
-                    ⚠️ Inserisci almeno un IP o un range IP per abilitare la verifica WiFi.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </motion.div>
 

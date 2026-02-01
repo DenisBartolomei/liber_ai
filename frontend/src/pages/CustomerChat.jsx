@@ -196,13 +196,7 @@ function CustomerChat() {
         setTokenLoading(false)
       } catch (error) {
         console.error('Error creating access token:', error)
-        
-        // Check if it's a WiFi verification error
-        if (error.response?.data?.error_code === 'WIFI_VERIFICATION_FAILED') {
-          setTokenError(t('customerChat:errors.wifiRequired'))
-        } else {
-          setTokenError(error.response?.data?.message || t('customerChat:errors.tokenError'))
-        }
+        setTokenError(error.response?.data?.message || t('customerChat:errors.tokenError'))
         setTokenLoading(false)
       }
     }
@@ -708,8 +702,6 @@ function CustomerChat() {
 
   // Show token error if any
   if (tokenError) {
-    const isWifiError = tokenError === t('customerChat:errors.wifiRequired')
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -717,36 +709,19 @@ function CustomerChat() {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h2 className="font-display text-2xl font-bold text-cream-50 mb-4">
-            {isWifiError ? t('customerChat:errors.wifiErrorTitle') : t('customerChat:errors.accessErrorTitle')}
+            {t('customerChat:errors.accessErrorTitle')}
           </h2>
           <p className="text-cream-100/70 mb-6">
-            {isWifiError
-              ? t('customerChat:errors.wifiErrorDescription')
-              : tokenError
-            }
+            {tokenError}
           </p>
-          {isWifiError && (
-            <div className="bg-burgundy-800/50 rounded-xl p-4 mb-6 text-left">
-              <p className="text-sm text-cream-100/80 mb-2">
-                <strong className="text-gold-400">{t('customerChat:errors.wifiHowToTitle')}</strong>
-              </p>
-              <ol className="text-sm text-cream-100/70 list-decimal list-inside space-y-1">
-                <li>{t('customerChat:errors.wifiHowToStep1')}</li>
-                <li>{t('customerChat:errors.wifiHowToStep2')}</li>
-                <li>{t('customerChat:errors.wifiHowToStep3')}</li>
-              </ol>
-            </div>
-          )}
-          {!isWifiError && (
-            <p className="text-sm text-cream-100/50 mb-6">
-              {t('customerChat:errors.scanAgain')}
-            </p>
-          )}
+          <p className="text-sm text-cream-100/50 mb-6">
+            {t('customerChat:errors.scanAgain')}
+          </p>
           <button
             onClick={() => window.location.reload()}
             className="px-6 py-3 bg-gold-500 text-burgundy-900 rounded-xl font-semibold hover:bg-gold-400 transition-colors"
           >
-            {isWifiError ? t('common:buttons.retry') : t('customerChat:errors.reloadPage')}
+            {t('customerChat:errors.reloadPage')}
           </button>
         </div>
       </div>
