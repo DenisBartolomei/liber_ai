@@ -94,13 +94,15 @@ def create_app(config_class=Config):
     from app.routes.auth import auth_bp
     from app.routes.venues import venues_bp
     from app.routes.products import products_bp
+    from app.routes.wines import wines_bp  # New wine architecture
     from app.routes.chat import chat_bp
     from app.routes.menu import menu_bp
     from app.routes.analytics import analytics_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(venues_bp, url_prefix='/api/venues')
-    app.register_blueprint(products_bp, url_prefix='/api/products')
+    app.register_blueprint(products_bp, url_prefix='/api/products')  # Legacy
+    app.register_blueprint(wines_bp, url_prefix='/api/wines')  # New architecture
     app.register_blueprint(chat_bp, url_prefix='/api/chat')
     app.register_blueprint(menu_bp, url_prefix='/api/menu')
     app.register_blueprint(analytics_bp, url_prefix='/api/analytics')

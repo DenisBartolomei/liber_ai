@@ -33,17 +33,60 @@ def enrich_wines_with_db_data(wines):
     The fine-tuned selector only returns id, name, price, rank, reason, best.
     This function adds image_url, region, grape_variety, vintage, and other useful fields
     to ensure cards are always complete (photo + info).
+
+    Supports both legacy Product table and new VenueWine table.
     """
     if not wines:
         return wines
-    
+
     wine_ids = [w.get('id') for w in wines if w.get('id')]
     if not wine_ids:
         return wines
-    
+
+    # Try new VenueWine model first, fallback to legacy Product
+    try:
+        from app.models import VenueWine
+        venue_wines = VenueWine.query.filter(VenueWine.id.in_(wine_ids)).all()
+        if venue_wines:
+            # Use new model
+            wine_map = {vw.id: vw for vw in venue_wines}
+            enriched = []
+            for wine in wines:
+                wine_id = wine.get('id')
+                if wine_id and wine_id in wine_map:
+                    vw = wine_map[wine_id]
+                    w = vw.wine  # Get master wine data
+                    # Venue-specific data
+                    wine['image_url'] = vw.image_url or (w.image_url if w else None)
+                    wine['vintage'] = vw.vintage
+                    # Master wine data
+                    if w:
+                        wine['region'] = w.region
+                        wine['grape_variety'] = w.grape_variety
+                        wine['type'] = w.type
+                        wine['description'] = w.description
+                        wine['country'] = w.country
+                        wine['appellation'] = w.appellation
+                        wine['producer'] = w.producer
+                        wine['tasting_notes'] = w.tasting_notes
+                        wine['aromas'] = w.aromas
+                        wine['color'] = w.color
+                        wine['body'] = w.body
+                        wine['tannin_level'] = w.tannin_level
+                        wine['acidity_level'] = w.acidity_level
+                        wine['alcohol_content'] = w.alcohol_content
+                        wine['sweetness'] = w.sweetness
+                        wine['food_pairings'] = w.food_pairings
+                        wine['wine_id'] = w.id  # Add master wine ID
+                enriched.append(wine)
+            return enriched
+    except Exception as e:
+        logger.debug(f"VenueWine lookup failed, using legacy Product: {e}")
+
+    # Legacy fallback: use Product table
     products = Product.query.filter(Product.id.in_(wine_ids)).all()
     product_map = {p.id: p for p in products}
-    
+
     enriched = []
     for wine in wines:
         wine_id = wine.get('id')
@@ -69,14 +112,10 @@ def enrich_wines_with_db_data(wines):
             wine['sweetness'] = getattr(p, 'sweetness', None)
             wine['food_pairings'] = getattr(p, 'food_pairings', None)
 
-            # Log completeness for debugging
-            logger.info(
+            logger.debug(
                 f"Enriching wine {wine_id} '{p.name}': "
                 f"image_url={bool(p.image_url)}, "
-                f"region={bool(getattr(p, 'region', None))}, "
-                f"grape={bool(getattr(p, 'grape_variety', None))}, "
-                f"vintage={bool(getattr(p, 'vintage', None))}, "
-                f"type={bool(getattr(p, 'type', None))}"
+                f"region={bool(getattr(p, 'region', None))}"
             )
         enriched.append(wine)
     return enriched
