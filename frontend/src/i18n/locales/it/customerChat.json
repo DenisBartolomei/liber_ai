@@ -191,5 +191,13 @@
     "wineSelected": "Perfetto! Abbiamo scelto {{wineName}}{{price}}. Grazie per la fiducia. Adesso potete chiedere al cameriere di portare questa etichetta. Buona cena!",
     "journeySelected": "Perfetto! Abbiamo selezionato il percorso di degustazione:\n{{wineList}}\n\nChiedete al cameriere di portare queste etichette nell'ordine suggerito. Buona cena!",
     "multipleWinesSelected": "Perfetto! Ho scelto {{wineNames}}. Grazie per la consulenza del sommelier. Chiamerò il cameriere per ordinare queste etichette. Buona cena!"
+  },
+  "session": {
+    "expired": "La sessione è scaduta.",
+    "expiredTitle": "Sessione Terminata",
+    "expiredMessage": "Il tempo a disposizione per la consulenza è terminato. La sessione ha una durata massima di 30 minuti.",
+    "expiredHint": "Per una nuova consulenza, scansiona nuovamente il QR code al tavolo del ristorante.",
+    "closeWindow": "Chiudi la finestra",
+    "thankYou": "Grazie per aver utilizzato il nostro sommelier virtuale!"
   }
 }

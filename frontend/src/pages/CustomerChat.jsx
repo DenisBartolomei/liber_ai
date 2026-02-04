@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -15,7 +15,9 @@ import {
   CheckCircle2,
   Search,
   Star,
-  ArrowUp
+  ArrowUp,
+  Clock,
+  XCircle
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useTranslation } from 'react-i18next'
@@ -134,7 +136,13 @@ function CustomerChat() {
   const [proceedLoading, setProceedLoading] = useState(false)
   const [precomputeStatus, setPrecomputeStatus] = useState(null)
   const [showClarificationHint, setShowClarificationHint] = useState(false)
-  
+
+  // Session expiration state
+  const [sessionExpired, setSessionExpired] = useState(false)
+  const [sessionExpirationMessage, setSessionExpirationMessage] = useState('')
+  const [timeRemaining, setTimeRemaining] = useState(null) // seconds until expiration
+  const [expiresAt, setExpiresAt] = useState(null) // ISO timestamp
+
   // Calculate bottles when journey is selected or guest count changes
   useEffect(() => {
     if (selectedJourney === 'journey') {
@@ -464,6 +472,88 @@ function CustomerChat() {
     }
   }, [flowStep, sessionToken, chatContext, precomputeStatus, precomputeRankings])
 
+  // Check session status polling (every 30 seconds when in chat mode)
+  useEffect(() => {
+    if (!sessionToken || flowStep !== 'chat' || sessionExpired) {
+      return
+    }
+
+    const checkSessionStatus = async () => {
+      try {
+        const response = await chatService.checkSessionStatus(sessionToken)
+        const data = response.data
+
+        if (data.is_expired) {
+          console.log('[CustomerChat] Session expired:', data)
+          setSessionExpired(true)
+          setSessionExpirationMessage(data.message || t('customerChat:session.expired'))
+        } else {
+          // Update time remaining
+          if (data.time_remaining_seconds !== undefined) {
+            setTimeRemaining(data.time_remaining_seconds)
+          }
+          if (data.expires_at) {
+            setExpiresAt(data.expires_at)
+          }
+        }
+      } catch (error) {
+        // Check if error is due to session expiration
+        if (error.response?.status === 403 && error.response?.data?.is_expired) {
+          setSessionExpired(true)
+          setSessionExpirationMessage(error.response.data.message || t('customerChat:session.expired'))
+        } else {
+          console.error('[CustomerChat] Error checking session status:', error)
+        }
+      }
+    }
+
+    // Initial check
+    checkSessionStatus()
+
+    // Poll every 30 seconds
+    const interval = setInterval(checkSessionStatus, 30000)
+
+    return () => clearInterval(interval)
+  }, [sessionToken, flowStep, sessionExpired, t])
+
+  // Countdown timer (updates every second when time remaining is low)
+  useEffect(() => {
+    if (!expiresAt || sessionExpired) {
+      return
+    }
+
+    const updateCountdown = () => {
+      const now = new Date()
+      const expiry = new Date(expiresAt)
+      const remaining = Math.max(0, Math.floor((expiry - now) / 1000))
+      setTimeRemaining(remaining)
+
+      if (remaining === 0) {
+        setSessionExpired(true)
+        setSessionExpirationMessage(t('customerChat:session.expired'))
+      }
+    }
+
+    // Update countdown every second when less than 5 minutes remaining
+    const interval = setInterval(updateCountdown, timeRemaining && timeRemaining < 300 ? 1000 : 10000)
+
+    return () => clearInterval(interval)
+  }, [expiresAt, sessionExpired, timeRemaining, t])
+
+  // Handle API errors that indicate session expiration
+  useEffect(() => {
+    // Listen for session expiration errors from API calls
+    const handleSessionExpired = (event) => {
+      if (event.detail?.error_code === 'SESSION_EXPIRED') {
+        setSessionExpired(true)
+        setSessionExpirationMessage(event.detail.message || t('customerChat:session.expired'))
+      }
+    }
+
+    window.addEventListener('session-expired', handleSessionExpired)
+    return () => window.removeEventListener('session-expired', handleSessionExpired)
+  }, [t])
+
   useEffect(() => {
     if (!messages.length) return
     const lastMessage = messages[messages.length - 1]
@@ -494,6 +584,17 @@ function CustomerChat() {
   
   // Filter messages to hide the initial automatic one
   const visibleMessages = messages.filter(m => !m.hidden)
+
+  // Format time remaining for display
+  const formatTimeRemaining = useCallback((seconds) => {
+    if (seconds === null || seconds === undefined) return null
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    if (minutes > 0) {
+      return `${minutes}:${secs.toString().padStart(2, '0')}`
+    }
+    return `${secs}s`
+  }, [])
 
   // Generate confirmation message with wine names
   const generateConfirmationMessage = (wines) => {
@@ -1239,6 +1340,51 @@ function CustomerChat() {
     )
   }
 
+  // Session expired screen
+  if (sessionExpired) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-burgundy-950 via-burgundy-900 to-burgundy-950 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center max-w-md"
+        >
+          <div className="w-24 h-24 bg-burgundy-800/50 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-burgundy-700">
+            <XCircle className="w-12 h-12 text-cream-100/70" />
+          </div>
+
+          <h2 className="font-display text-3xl font-bold text-cream-50 mb-4">
+            {t('customerChat:session.expiredTitle')}
+          </h2>
+
+          <p className="text-cream-100/80 text-lg mb-6">
+            {sessionExpirationMessage || t('customerChat:session.expiredMessage')}
+          </p>
+
+          <div className="bg-burgundy-800/30 rounded-xl p-4 mb-8 border border-burgundy-700/50">
+            <p className="text-cream-100/60 text-sm">
+              {t('customerChat:session.expiredHint')}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => window.close()}
+              className="w-full px-6 py-4 bg-burgundy-700 text-cream-50 rounded-xl font-semibold hover:bg-burgundy-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <X className="w-5 h-5" />
+              {t('customerChat:session.closeWindow')}
+            </button>
+          </div>
+
+          <p className="text-cream-100/40 text-xs mt-8">
+            {t('customerChat:session.thankYou')}
+          </p>
+        </motion.div>
+      </div>
+    )
+  }
+
   // Chat mode
   return (
     <div className="min-h-screen bg-cream-50 flex flex-col">
@@ -1256,6 +1402,20 @@ function CustomerChat() {
               <p className="text-xs text-cream-100/70">{t('customerChat:chat.personalSommelier')}</p>
             </div>
           </div>
+
+          {/* Session timer indicator */}
+          {timeRemaining !== null && timeRemaining > 0 && (
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
+              timeRemaining < 300
+                ? 'bg-red-500/20 text-red-300 animate-pulse'
+                : timeRemaining < 600
+                  ? 'bg-orange-500/20 text-orange-300'
+                  : 'bg-burgundy-800/50 text-cream-100/70'
+            }`}>
+              <Clock className="w-4 h-4" />
+              <span className="font-mono">{formatTimeRemaining(timeRemaining)}</span>
+            </div>
+          )}
         </div>
       </header>
 

@@ -178,7 +178,15 @@ export const chatService = {
     api.get('/chat/precompute-rankings/status', { params: { session_token: sessionToken } }),
 
   proceedRecommendations: (sessionToken, message = null) =>
-    api.post('/chat/proceed-recommendations', { session_token: sessionToken, message })
+    api.post('/chat/proceed-recommendations', { session_token: sessionToken, message }),
+
+  // Check session status (for polling session expiration)
+  checkSessionStatus: (sessionToken) =>
+    api.get(`/chat/sessions/${sessionToken}/status`),
+
+  // End session
+  endSession: (sessionToken) =>
+    api.post(`/chat/sessions/${sessionToken}/end`)
 }
 
 // Analytics Service
