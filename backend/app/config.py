@@ -139,6 +139,11 @@ class Config:
     SESSION_TIMEOUT_MINUTES = int(os.getenv('SESSION_TIMEOUT_MINUTES', '60'))
     MAX_CONVERSATION_HISTORY = int(os.getenv('MAX_CONVERSATION_HISTORY', '20'))
 
+    # B2C Session Duration (for QR code scanned sessions)
+    # After this time from session creation, the session expires and shows "Session ended" screen
+    # This prevents users from using the sommelier outside the venue after scanning the QR code
+    B2C_SESSION_DURATION_MINUTES = int(os.getenv('B2C_SESSION_DURATION_MINUTES', '30'))
+
 
 class ProductionConfig(Config):
     """Production configuration"""

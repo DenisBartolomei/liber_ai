@@ -1,8 +1,9 @@
 """
 Session Model - Represents a chat session
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
+from flask import current_app
 from app import db
 
 
@@ -272,6 +273,79 @@ class Session(db.Model):
         else:
             delta = datetime.utcnow() - self.created_at
         return int(delta.total_seconds() / 60)
+
+    @property
+    def b2c_session_duration_minutes(self):
+        """Get B2C session duration from config"""
+        try:
+            return current_app.config.get('B2C_SESSION_DURATION_MINUTES', 30)
+        except RuntimeError:
+            # Outside Flask app context, use default
+            return 30
+
+    @property
+    def expires_at(self):
+        """
+        Calculate when this session expires.
+        For B2C sessions, this is created_at + B2C_SESSION_DURATION_MINUTES.
+        For B2B sessions, returns None (no automatic expiration).
+        """
+        if self.mode != 'b2c':
+            return None
+
+        if not self.created_at:
+            return None
+
+        return self.created_at + timedelta(minutes=self.b2c_session_duration_minutes)
+
+    @property
+    def is_expired(self):
+        """
+        Check if this B2C session has expired based on time since creation.
+        B2B sessions never expire automatically.
+        Sessions that are already ended (completed/abandoned/timeout) are considered expired.
+        """
+        # Already ended sessions are expired
+        if self.status != 'active':
+            return True
+
+        # B2B sessions don't expire automatically
+        if self.mode != 'b2c':
+            return False
+
+        # Check time-based expiration
+        if self.expires_at and datetime.utcnow() > self.expires_at:
+            return True
+
+        return False
+
+    @property
+    def time_remaining_seconds(self):
+        """
+        Calculate seconds remaining until session expires.
+        Returns 0 if already expired, None for B2B sessions.
+        """
+        if self.mode != 'b2c':
+            return None
+
+        if self.is_expired:
+            return 0
+
+        if not self.expires_at:
+            return None
+
+        remaining = (self.expires_at - datetime.utcnow()).total_seconds()
+        return max(0, int(remaining))
+
+    def check_and_expire(self):
+        """
+        Check if session should expire and mark it as timeout if so.
+        Returns True if session was expired, False otherwise.
+        """
+        if self.is_expired and self.status == 'active':
+            self.end_session(status='timeout')
+            return True
+        return False
 
 
 # Indexes for better query performance

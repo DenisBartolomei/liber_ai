@@ -21,6 +21,51 @@ logger = logging.getLogger(__name__)
 
 chat_bp = Blueprint('chat', __name__)
 
+
+def check_session_expiration(session):
+    """
+    Check if a B2C session has expired and update its status if needed.
+
+    Returns:
+        tuple: (is_expired: bool, error_response: dict or None)
+
+    If session is expired, returns (True, error_dict) where error_dict contains
+    the JSON response to return to the client.
+    """
+    if not session:
+        return True, {
+            'message': 'Sessione non trovata',
+            'error_code': 'SESSION_NOT_FOUND',
+            'is_expired': True
+        }
+
+    # Check and auto-expire if time limit exceeded
+    was_expired = session.check_and_expire()
+    if was_expired:
+        db.session.commit()
+        logger.info(f"Session {session.id} auto-expired after time limit")
+
+    # Check if session is expired (either from status or time-based)
+    if session.is_expired:
+        reason_messages = {
+            'timeout': 'La sessione è scaduta. Il tempo massimo di 30 minuti è stato superato.',
+            'completed': 'La sessione è stata completata.',
+            'abandoned': 'La sessione è stata abbandonata.'
+        }
+
+        message = reason_messages.get(session.status, 'La sessione è scaduta.')
+
+        return True, {
+            'message': message,
+            'error_code': 'SESSION_EXPIRED',
+            'is_expired': True,
+            'status': session.status,
+            'expires_at': session.expires_at.isoformat() if session.expires_at else None
+        }
+
+    return False, None
+
+
 # Rate limits for chat endpoints (more restrictive than global)
 # These protect against abuse and control OpenAI API costs
 CHAT_MESSAGE_LIMIT = "15 per minute"  # Max 15 messages per minute per IP
@@ -463,8 +508,10 @@ def precompute_rankings():
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
 
-    if session.status != 'active':
-        return jsonify({'message': 'Sessione terminata'}), 400
+    # Check session expiration (B2C time limit)
+    is_expired, error_response = check_session_expiration(session)
+    if is_expired:
+        return jsonify(error_response), 403
 
     venue = Venue.query.get(session.venue_id)
     if not venue:
@@ -601,12 +648,12 @@ def proceed_recommendations():
     Proceed to recommendations using precomputed rankings if available.
     """
     start_time = time.time()
-    
+
     try:
         data = request.get_json()
         session_token = data.get('session_token')
         user_text = data.get('message')
-        
+
         logger.info(f"Proceed: received request, session_token exists={bool(session_token)}, user_text='{(user_text or '')[:30]}...'")
 
         if not session_token:
@@ -617,8 +664,10 @@ def proceed_recommendations():
             logger.warning(f"Proceed: session not found for token {session_token[:8]}...")
             return jsonify({'message': 'Sessione non trovata'}), 404
 
-        if session.status != 'active':
-            return jsonify({'message': 'Sessione terminata'}), 400
+        # Check session expiration (B2C time limit)
+        is_expired, error_response = check_session_expiration(session)
+        if is_expired:
+            return jsonify(error_response), 403
 
         venue = Venue.query.get(session.venue_id)
         if not venue:
@@ -829,7 +878,7 @@ def proceed_recommendations():
 def confirm_wines():
     """
     Track wines as selected/requested when customer confirms selection.
-    
+
     Expected JSON:
     {
         "session_token": "abc123...",
@@ -839,21 +888,23 @@ def confirm_wines():
     data = request.get_json()
     session_token = data.get('session_token')
     wine_ids = data.get('wine_ids', [])
-    
+
     if not session_token:
         return jsonify({'message': 'session_token è obbligatorio'}), 400
-    
+
     if not wine_ids or not isinstance(wine_ids, list):
         return jsonify({'message': 'wine_ids deve essere una lista di ID'}), 400
-    
+
     # Find session
     session = Session.query.filter_by(session_token=session_token).first()
-    
+
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
-    
-    if session.status != 'active':
-        return jsonify({'message': 'Sessione terminata'}), 400
+
+    # Check session expiration (B2C time limit)
+    is_expired, error_response = check_session_expiration(session)
+    if is_expired:
+        return jsonify(error_response), 403
     
     # Track each wine as sold (confirmed by user) with timestamp
     selected_proposals = []
@@ -928,26 +979,28 @@ def send_message():
     session_token = data.get('session_token')
     message_content = data.get('message')
     message_context = data.get('context')  # New: structured context from setup flow
-    
+
     if not session_token or not message_content:
         return jsonify({'message': 'session_token e message sono obbligatori'}), 400
-    
+
     # Find session
     session = Session.query.filter_by(session_token=session_token).first()
-    
+
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
-    
+
     # Force immediate refresh from database to get latest context (e.g., wines_proposed flag set by /proceed-recommendations)
     # Using refresh() instead of expire() to force immediate reload, not lazy reload
     db.session.refresh(session)
-    
+
     # #region agent log
     logger.warning(f"[DEBUG-A] MESSAGES: After refresh, session_id={session.id}, session_token={session_token[:8]}..., context_keys={list((session.context or {}).keys())}, wines_proposed_raw={(session.context or {}).get('wines_proposed', 'NOT_FOUND')}")
     # #endregion
-    
-    if session.status != 'active':
-        return jsonify({'message': 'Sessione terminata'}), 400
+
+    # Check session expiration (B2C time limit)
+    is_expired, error_response = check_session_expiration(session)
+    if is_expired:
+        return jsonify(error_response), 403
     
     # ============================================
     # CRITICAL: First read clarification mode flags from session BEFORE any merge
@@ -1299,14 +1352,73 @@ def submit_feedback():
 def end_session(session_token):
     """End a chat session."""
     session = Session.query.filter_by(session_token=session_token).first()
-    
+
     if not session:
         return jsonify({'message': 'Sessione non trovata'}), 404
-    
+
     session.end_session(status='completed')
     db.session.commit()
-    
+
     return jsonify({'message': 'Sessione terminata'}), 200
+
+
+@chat_bp.route('/sessions/<session_token>/status', methods=['GET'])
+def get_session_status(session_token):
+    """
+    Get the current status of a session, including expiration info.
+    This endpoint is used by the frontend to poll for session expiration.
+
+    Returns:
+    - status: 'active', 'completed', 'abandoned', 'timeout'
+    - is_expired: boolean
+    - expires_at: ISO timestamp when session expires (B2C only)
+    - time_remaining_seconds: seconds until expiration (B2C only)
+    - reason: human-readable reason if expired
+    """
+    session = Session.query.filter_by(session_token=session_token).first()
+
+    if not session:
+        return jsonify({
+            'message': 'Sessione non trovata',
+            'status': 'not_found',
+            'is_expired': True,
+            'reason': 'session_not_found'
+        }), 404
+
+    # Check and update expiration status if needed
+    was_expired = session.check_and_expire()
+    if was_expired:
+        db.session.commit()
+
+    # Build response
+    response = {
+        'status': session.status,
+        'is_expired': session.is_expired,
+        'mode': session.mode,
+        'created_at': session.created_at.isoformat() if session.created_at else None
+    }
+
+    # Add B2C-specific expiration info
+    if session.mode == 'b2c':
+        response['expires_at'] = session.expires_at.isoformat() if session.expires_at else None
+        response['time_remaining_seconds'] = session.time_remaining_seconds
+
+        # Add human-readable reason
+        if session.is_expired:
+            if session.status == 'timeout':
+                response['reason'] = 'session_timeout'
+                response['message'] = 'La sessione è scaduta dopo 30 minuti.'
+            elif session.status == 'completed':
+                response['reason'] = 'session_completed'
+                response['message'] = 'La sessione è stata completata.'
+            elif session.status == 'abandoned':
+                response['reason'] = 'session_abandoned'
+                response['message'] = 'La sessione è stata abbandonata.'
+            else:
+                response['reason'] = 'session_expired'
+                response['message'] = 'La sessione è scaduta.'
+
+    return jsonify(response), 200
 
 
 
